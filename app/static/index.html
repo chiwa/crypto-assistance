@@ -35,20 +35,30 @@
       min-height: 100vh;
     }
     
-    /* Top Header */
-    .top-header {
-      background: var(--header-bg);
-      border-bottom: 1px solid var(--line);
-      padding: 12px 20px;
+    /* App Sticky Header */
+    .app-header {
       position: sticky;
       top: 0;
-      z-index: 99;
+      z-index: 100;
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+
+    /* Top Header */
+    .top-header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 10px 0;
+    }
+    .header-inner {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 12px;
-      backdrop-filter: blur(8px);
     }
     .brand {
       display: flex;
@@ -79,16 +89,21 @@
     /* Navigation Bar */
     .nav-bar {
       background: var(--nav-bg);
-      border-bottom: 1px solid var(--line);
-      position: sticky;
-      top: 57px;
-      z-index: 98;
+      padding: 6px 0;
+    }
+    .nav-inner {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 16px;
       display: flex;
-      gap: 4px;
-      padding: 6px 16px;
+      gap: 6px;
       overflow-x: auto;
       white-space: nowrap;
       -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .nav-inner::-webkit-scrollbar {
+      display: none;
     }
     .nav-tab {
       display: inline-flex;
@@ -366,40 +381,46 @@
     @media (max-width: 900px) {
       .span-3, .span-4, .span-6, .span-8 { grid-column: span 12; }
       .metric-grid { grid-template-columns: repeat(2, 1fr); }
-      .top-header { flex-direction: column; align-items: flex-start; }
-      .nav-bar { top: 96px; }
+      .header-inner { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .header-status { width: 100%; justify-content: space-between; }
     }
   </style>
 </head>
 <body>
 
-<!-- Top Header -->
-<header class="top-header">
-  <div class="brand">
-    <h1>🚀 Crypto Assistance <span style="font-size:13px;color:var(--muted);font-weight:400">· ผู้ช่วยเทรด Bitkub THB Spot</span></h1>
+<!-- Top Unified Sticky Header (Header + Navigation aligned with main content) -->
+<header class="app-header">
+  <div class="top-header">
+    <div class="header-inner">
+      <div class="brand">
+        <h1>🚀 Crypto Assistance <span class="brand-sub">· ผู้ช่วยเทรด Bitkub THB Spot</span></h1>
+      </div>
+      <div class="header-status">
+        <span id="ws-badge" class="badge">WebSocket เชื่อมต่อแล้ว</span>
+        <span class="badge badge-real">MANUAL_REAL (พอร์ตจริง)</span>
+        <span id="ai-status-indicator" class="badge badge-gray">AI: ตรวจสอบ...</span>
+        <button class="btn-secondary btn-sm" onclick="navigateTo('notifications')" title="ดูการแจ้งเตือน">
+          🔔 <span id="top-unread-count">0</span>
+        </button>
+      </div>
+    </div>
   </div>
-  <div class="header-status">
-    <span id="ws-badge" class="badge">WebSocket เชื่อมต่อแล้ว</span>
-    <span class="badge badge-real">MANUAL_REAL (พอร์ตจริง)</span>
-    <span id="ai-status-indicator" class="badge badge-gray">AI: ตรวจสอบ...</span>
-    <button class="btn-secondary btn-sm" onclick="navigateTo('notifications')" title="ดูการแจ้งเตือน">
-      🔔 <span id="top-unread-count">0</span>
-    </button>
-  </div>
-</header>
 
-<!-- Persistent Navigation Bar -->
-<nav class="nav-bar" id="app-nav">
-  <a href="#dashboard" class="nav-tab active" data-page="dashboard"><span class="nav-icon">🏠</span> ภาพรวม</a>
-  <a href="#position" class="nav-tab" data-page="position"><span class="nav-icon">📌</span> สถานะที่ถือ</a>
-  <a href="#scanner" class="nav-tab" data-page="scanner"><span class="nav-icon">🔍</span> สแกนตลาด</a>
-  <a href="#trading" class="nav-tab" data-page="trading"><span class="nav-icon">💰</span> เทรด / เงินสด</a>
-  <a href="#notifications" class="nav-tab" data-page="notifications">
-    <span class="nav-icon">🔔</span> แจ้งเตือน
-    <span id="nav-unread-badge" class="badge badge-red" style="display:none;padding:1px 6px;font-size:10px">0</span>
-  </a>
-  <a href="#journal" class="nav-tab" data-page="journal"><span class="nav-icon">📖</span> ประวัติ / ตั้งค่า</a>
-</nav>
+  <!-- Persistent Navigation Bar -->
+  <nav class="nav-bar" id="app-nav">
+    <div class="nav-inner">
+      <a href="#dashboard" class="nav-tab active" data-page="dashboard"><span class="nav-icon">🏠</span> ภาพรวม</a>
+      <a href="#position" class="nav-tab" data-page="position"><span class="nav-icon">📌</span> สถานะที่ถือ</a>
+      <a href="#scanner" class="nav-tab" data-page="scanner"><span class="nav-icon">🔍</span> สแกนตลาด</a>
+      <a href="#trading" class="nav-tab" data-page="trading"><span class="nav-icon">💰</span> เทรด / เงินสด</a>
+      <a href="#notifications" class="nav-tab" data-page="notifications">
+        <span class="nav-icon">🔔</span> แจ้งเตือน
+        <span id="nav-unread-badge" class="badge badge-red" style="display:none;padding:1px 6px;font-size:10px">0</span>
+      </a>
+      <a href="#journal" class="nav-tab" data-page="journal"><span class="nav-icon">📖</span> ประวัติ / ตั้งค่า</a>
+    </div>
+  </nav>
+</header>
 
 <main>
   <!-- Global Critical Alert Banner (Visible from any page when critical signal triggers) -->
