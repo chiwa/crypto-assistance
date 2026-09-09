@@ -3,7 +3,7 @@ from app.engines import EntryEngine, PositionExitEngine
 
 
 def signals(kind="BUY", score=80, close=100):
-    details={"close":close,"atr":1,"stop_loss":98,"take_profit":104}
+    details={"close":close,"atr":1,"stop_loss":98,"take_profit":104,"relative_volume":1.3}
     return [{"timeframe":t,"signal":kind,"score":score,"regime":"UPTREND","details":details} for t in ("15m","1h","4h")]
 
 
@@ -11,6 +11,13 @@ def test_entry_wait_watch_buy_now():
     engine=EntryEngine()
     assert engine.rank("BTC/THB",signals(),100).status=="BUY_NOW"
     assert engine.rank("BTC/THB",signals("HOLD",40),100).status=="WAIT"
+
+
+def test_buy_now_requires_volume_confirmation():
+    weak=signals()
+    for signal in weak:
+        signal["details"]["relative_volume"]=0.8
+    assert EntryEngine().rank("BTC/THB",weak,100).status=="WATCH"
 
 
 def test_exit_lifecycle():

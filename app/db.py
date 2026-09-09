@@ -120,6 +120,7 @@ DEFAULT_SETTINGS = {
     "price_refresh_seconds": 60,
     "timeframes": ["15m", "1h", "4h"],
     "risk_percent": 2.0,
+    "relative_volume_min": 1.2,
     "estimated_exit_fee_percent": 0.25,
     "scanner_enabled": True,
     "websocket_enabled": True,
@@ -743,7 +744,7 @@ class Database:
 
     def scanner_snapshot(self) -> tuple[list[dict], dict | None]:
         from app.engines import EntryEngine, candidate_dict
-        entry_engine = EntryEngine()
+        entry_engine = EntryEngine(float(self.settings().get("relative_volume_min", 1.2)))
         all_pairs = ["BTC/THB", "ETH/THB", "SOL/THB", "XRP/THB", "DOGE/THB"]
         with self.connect() as conn:
             open_count = conn.execute(

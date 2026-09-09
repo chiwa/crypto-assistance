@@ -26,6 +26,9 @@ class Candidate:
 
 
 class EntryEngine:
+    def __init__(self, relative_volume_min: float = 1.2):
+        self.relative_volume_min = relative_volume_min
+
     def rank(
         self,
         pair: str,
@@ -54,6 +57,8 @@ class EntryEngine:
         entry_high = round(ref * 1.01, 4)
         in_zone = entry_low <= current_price <= entry_high
         aligned = len(buys) >= 2 and (not four or four["signal"] != "SELL")
+        volume_confirmed = [s for s in signals if float(s["details"].get("relative_volume", 0)) >= self.relative_volume_min]
+        volume_ok = len(volume_confirmed) >= 2
 
         # Check circuit breaker and position locks
         if has_open_position:
@@ -64,14 +69,14 @@ class EntryEngine:
             status = "WAIT"
             reason = "Circuit breaker triggered: 2 consecutive losses today"
             reason_th = "หยุดเทรดประจำวัน: ขาดทุนติดต่อกัน 2 ครั้งในวันนี้"
-        elif aligned and in_zone and avg_score >= 60:
+        elif aligned and volume_ok and in_zone and avg_score >= 60:
             status = "BUY_NOW" if avg_score >= 75 or (len(buys) == 3 and in_zone) else "WATCH"
-            reason = f"{len(buys)}/3 timeframes aligned; price in entry zone [{entry_low:,.2f} - {entry_high:,.2f}]"
-            reason_th = f"สัญญาณซื้อสอดคล้อง {len(buys)}/3 Timeframes, ราคาอยู่ในโซนเข้าซื้อ [{entry_low:,.2f} - {entry_high:,.2f}]"
+            reason = f"{len(buys)}/3 timeframes and {len(volume_confirmed)}/3 volume confirmations; price in entry zone"
+            reason_th = f"สัญญาณซื้อ {len(buys)}/3 และ Volume {len(volume_confirmed)}/3 Timeframes ผ่านเกณฑ์ {self.relative_volume_min:.2f}x"
         elif avg_score >= 45 or aligned:
             status = "WATCH"
-            reason = f"Setup developing (score {avg_score}); waiting for entry zone touch"
-            reason_th = f"กำลังก่อตัว (คะแนน {avg_score}); รอย่อเข้าโซนซื้อหรือยืนยันราคา"
+            reason = f"Setup developing (score {avg_score}); volume {len(volume_confirmed)}/3 confirmed"
+            reason_th = f"กำลังก่อตัว (คะแนน {avg_score}); Volume ยืนยัน {len(volume_confirmed)}/3 Timeframes"
         else:
             status = "WAIT"
             reason = f"No valid setup (score {avg_score}); insufficient timeframe confirmation"
@@ -200,4 +205,3 @@ def build_exit_plan_from_market(
 
 def candidate_dict(candidate: Candidate) -> dict:
     return asdict(candidate)
-

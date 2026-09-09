@@ -2,11 +2,11 @@ from app.engines import EntryEngine, PositionExitEngine
 from app.strategy import analyze
 
 
-def replay(pair: str, highs: list[float], lows: list[float], closes: list[float], fee_percent=.25, slippage_percent=.1) -> dict:
+def replay(pair: str, highs: list[float], lows: list[float], closes: list[float], fee_percent=.25, slippage_percent=.1, volumes: list[float] | None=None) -> dict:
     entry_engine, exit_engine = EntryEngine(), PositionExitEngine()
     cash, peak, max_dd, curve, trades, position = 100_000.0, 100_000.0, 0.0, [], [], None
     for i in range(51, len(closes)):
-        a = analyze(highs[i-50:i], lows[i-50:i], closes[i-50:i])
+        a = analyze(highs[i-50:i], lows[i-50:i], closes[i-50:i], volumes[i-50:i] if volumes else None)
         signals = [{"timeframe": x, "signal": a["signal"], "score": a["score"], "regime": a["regime"], "details": a} for x in ("15m","1h","4h")]
         price = closes[i]
         if not position:

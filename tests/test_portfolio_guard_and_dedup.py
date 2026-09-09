@@ -35,6 +35,7 @@ def test_portfolio_guard_suppresses_buy_now_when_position_open(tmp_path):
         "take_profit_1": 2_420_000.0,
         "take_profit_2": 2_480_000.0,
         "strategy": "Breakout",
+        "relative_volume": 1.3,
     }
     db.save_signal("BTC/THB", "15m", btc_buy_sig)
     db.save_signal("BTC/THB", "1h", btc_buy_sig)
@@ -94,6 +95,7 @@ def test_buy_now_allowed_when_no_position_open(tmp_path):
         "take_profit_1": 2_420_000.0,
         "take_profit_2": 2_480_000.0,
         "strategy": "Breakout",
+        "relative_volume": 1.3,
     }
     db.save_signal("BTC/THB", "15m", btc_buy_sig)
     db.save_signal("BTC/THB", "1h", btc_buy_sig)

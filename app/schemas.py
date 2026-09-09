@@ -36,6 +36,7 @@ class SettingsRequest(BaseModel):
     price_refresh_seconds: int = Field(ge=30, le=3600)
     timeframes: list[Literal["15m", "1h", "4h"]]
     risk_percent: float = Field(ge=0.1, le=5)
+    relative_volume_min: float = Field(default=1.2, ge=0.5, le=5)
     estimated_exit_fee_percent: float = Field(default=.25, ge=0, le=5)
     scanner_enabled: bool
     websocket_enabled: bool = True
@@ -62,3 +63,13 @@ class JournalRequest(BaseModel):
 class SecondOpinionRequest(BaseModel):
     signal_id: int
     question: str = Field(min_length=1, max_length=1000)
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=1500)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=1000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=10)

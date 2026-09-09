@@ -7,7 +7,7 @@ from app.realtime import RealtimeMonitor
 def test_websocket_buy_now_alert_is_deterministic(tmp_path):
     db = Database(str(tmp_path / "test.db"))
     db.initialize()
-    result = {"signal": "BUY", "score": 70, "regime": "UPTREND", "close": 100.0, "stop_loss": 90.0, "take_profit": 120.0}
+    result = {"signal": "BUY", "score": 70, "regime": "UPTREND", "close": 100.0, "stop_loss": 90.0, "take_profit": 120.0, "relative_volume": 1.3}
     db.save_signal("BTC/THB", "15m", result)
     db.save_signal("BTC/THB", "1h", result)
     monitor = RealtimeMonitor(db)

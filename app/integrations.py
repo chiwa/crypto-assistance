@@ -46,6 +46,39 @@ class DeepSeekSecondOpinion:
             logger.warning(f"DeepSeek call failed: {exc}")
             raise RuntimeError(f"DeepSeek ขัดข้องชั่วคราว: {exc}") from exc
 
+    async def chat(self, messages: list[dict], system_prompt: str) -> str:
+        """General chat with DeepSeek using system prompt knowledge and bounded history."""
+        if not self.configured:
+            raise RuntimeError("DEEP_SEEK_API_KEY ไม่ได้ถูกตั้งค่า (AI Chat is disabled)")
+
+        payload_messages = [{"role": "system", "content": system_prompt}]
+        for m in messages:
+            payload_messages.append({"role": m["role"], "content": m["content"]})
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": payload_messages,
+                        "temperature": 0.3,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+        except httpx.TimeoutException as exc:
+            logger.warning(f"DeepSeek chat call timed out: {exc}")
+            raise TimeoutError("การเชื่อมต่อ DeepSeek หมดเวลา (Timeout)") from exc
+        except Exception as exc:
+            err_msg = str(exc)
+            if self.api_key and self.api_key in err_msg:
+                err_msg = err_msg.replace(self.api_key, "[REDACTED_API_KEY]")
+            logger.warning(f"DeepSeek chat call failed: {err_msg}")
+            raise RuntimeError(f"DeepSeek ขัดข้องชั่วคราว: {err_msg}") from exc
+
     async def ask_structured(self, context: dict) -> dict:
         if not self.configured:
             return {

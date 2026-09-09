@@ -14,9 +14,12 @@ from app.integrations import DeepSeekSecondOpinion, TelegramNotifier
 from app.market import BitkubMarketData
 from app.realtime import RealtimeMonitor
 from app.scanner import Scanner
+from app.assistant_knowledge import build_system_prompt
 from app.schemas import (
     AskDeepSeekRequest,
     CashRequest,
+    ChatMessage,
+    ChatRequest,
     JournalRequest,
     SecondOpinionRequest,
     SettingsRequest,
@@ -198,7 +201,7 @@ async def backtest_endpoint(pair: str, timeframe: str, fee_percent: float = 0.25
     pair = pair.upper().replace("-", "/")
     try:
         candles = await market.candles(pair, timeframe, 500)
-        return replay(pair, candles["highs"], candles["lows"], candles["closes"], fee_percent, slippage_percent)
+        return replay(pair, candles["highs"], candles["lows"], candles["closes"], fee_percent, slippage_percent, candles.get("volumes"))
     except (KeyError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -433,4 +436,41 @@ async def send_test_sell_alert_endpoint():
             err_msg = err_msg.replace(telegram.token, "[REDACTED]")
         logger.warning(f"Test SELL alert delivery failed: {err_msg}")
         raise HTTPException(status_code=500, detail=f"ส่งไม่สำเร็จ: {err_msg}")
+
+
+@app.post("/api/chat")
+async def assistant_chat_endpoint(payload: ChatRequest):
+    if not deepseek.configured:
+        raise HTTPException(
+            status_code=503,
+            detail="DeepSeek API Key ไม่ได้ถูกกำหนดค่าในระบบ กรุณาตรวจสอบ .env หรือการตั้งค่า",
+        )
+    now_bkk = datetime.now(ZoneInfo("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
+    sys_prompt = build_system_prompt(db)
+    messages = [{"role": msg.role, "content": msg.content} for msg in payload.history]
+    messages.append({"role": "user", "content": payload.message})
+
+    try:
+        reply = await deepseek.chat(messages=messages, system_prompt=sys_prompt)
+        return {
+            "status": "ok",
+            "reply": reply,
+            "timestamp": now_bkk,
+            "disclaimer": "คำตอบจาก AI สำหรับแนะนำการใช้งานและประกอบการตัดสินใจเท่านั้น ไม่สามารถทำรายการซื้อขายแทนผู้ใช้ได้",
+        }
+    except TimeoutError as exc:
+        logger.warning(f"Assistant chat timeout: {exc}")
+        raise HTTPException(
+            status_code=504,
+            detail="การเชื่อมต่อ DeepSeek หมดเวลา (Timeout) กรุณาลองใหม่อีกครั้ง",
+        ) from exc
+    except Exception as exc:
+        err_msg = str(exc)
+        if deepseek.api_key and deepseek.api_key in err_msg:
+            err_msg = err_msg.replace(deepseek.api_key, "[REDACTED]")
+        logger.warning(f"Assistant chat error: {err_msg}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"DeepSeek ขัดข้องชั่วคราว: {err_msg}",
+        ) from exc
 

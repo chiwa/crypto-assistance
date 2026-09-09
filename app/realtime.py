@@ -347,6 +347,9 @@ class RealtimeMonitor:
             buys = [signal for signal in signals if signal["signal"] == "BUY"]
             sells = [signal for signal in signals if signal["signal"] == "SELL"]
             four_hour = next((signal for signal in signals if signal["timeframe"] == "4h"), None)
+            relative_volume_min = float(self.db.settings().get("relative_volume_min", 1.2))
+            volume_confirmed = [s for s in signals if float(s["details"].get("relative_volume", 0)) >= relative_volume_min]
+            volume_ok = len(volume_confirmed) >= 2
 
             # Check BUY_NOW condition: >= 2 timeframes aligned, 4h not selling, price in entry zone
             aligned = len(buys) >= 2 and (not four_hour or four_hour["signal"] != "SELL")
@@ -357,7 +360,7 @@ class RealtimeMonitor:
                 entry_high = reference * 1.01
                 in_zone = reference <= price <= entry_high
 
-                if in_zone:
+                if in_zone and volume_ok:
                     # STRICT ONE-POSITION SIGNAL GUARD:
                     # Suppress BUY_NOW event, DeepSeek, and Telegram if ANY position is open.
                     if has_any_open_pos:
@@ -395,7 +398,7 @@ class RealtimeMonitor:
                                 f"TP1: {details.get('take_profit_1', reference * 1.03):,.4f} บาท\n"
                                 f"TP2: {details.get('take_profit_2', reference * 1.05):,.4f} บาท\n"
                                 f"คะแนน: {score}\n"
-                                f"เหตุผล: ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes ราคาอยู่ในโซนเข้า\n"
+                                f"เหตุผล: สัญญาณซื้อ {len(buys)}/3 และ Volume {len(volume_confirmed)}/3 Timeframes ผ่านเกณฑ์ {relative_volume_min:.2f}x\n"
                                 f"เวลา: {now_bkk}\n\n"
                                 f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ"
                             )
@@ -405,7 +408,7 @@ class RealtimeMonitor:
             # WAIT -> WATCH, WATCH -> BUY_NOW, BUY_NOW -> no longer valid
             if has_any_open_pos:
                 cand_status = "WAIT"
-            elif aligned and in_zone:
+            elif aligned and in_zone and volume_ok:
                 cand_status = "BUY_NOW"
             elif aligned or len(buys) >= 1:
                 cand_status = "WATCH"

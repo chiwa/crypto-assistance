@@ -167,6 +167,7 @@ async def test_buy_now_lower_score_does_not_call_deepseek(tmp_path):
             "stop_loss": 2_300_000.0,
             "take_profit_1": 2_420_000.0,
             "take_profit_2": 2_480_000.0,
+            "relative_volume": 1.3,
         })
 
     mock_deepseek = MagicMock(spec=DeepSeekSecondOpinion)
@@ -199,10 +200,12 @@ async def test_buy_now_2_of_3_timeframes_does_not_call_deepseek(tmp_path):
     db.save_signal("BTC/THB", "15m", {
         "signal": "BUY", "score": 90, "regime": "UPTREND", "close": 2_350_000.0,
         "stop_loss": 2_300_000.0, "take_profit_1": 2_420_000.0,
+        "relative_volume": 1.3,
     })
     db.save_signal("BTC/THB", "1h", {
         "signal": "BUY", "score": 90, "regime": "UPTREND", "close": 2_350_000.0,
         "stop_loss": 2_300_000.0, "take_profit_1": 2_420_000.0,
+        "relative_volume": 1.3,
     })
     # 4h is HOLD, not BUY
     db.save_signal("BTC/THB", "4h", {
@@ -224,7 +227,7 @@ async def test_buy_now_2_of_3_timeframes_does_not_call_deepseek(tmp_path):
     # DeepSeek must NOT be called because only 2/3 timeframes BUY
     mock_deepseek.ask_buy_opinion.assert_not_called()
     assert len(telegram_messages) == 1
-    assert "ยืนยันสัญญาณซื้อ 2/3 Timeframes" in telegram_messages[0]
+    assert "สัญญาณซื้อ 2/3 และ Volume 2/3 Timeframes" in telegram_messages[0]
     assert "ความเห็นที่ 2 จาก DeepSeek" not in telegram_messages[0]
 
 
