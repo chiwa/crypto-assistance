@@ -693,6 +693,7 @@ class Database:
         asset = pair.split("/")[0].upper()
         with self.connect() as conn:
             signals = self._signals_for_pair(conn, pair)
+            btc_signals = self._signals_for_pair(conn, "BTC/THB") if pair != "BTC/THB" else signals
             positions = conn.execute(
                 "SELECT * FROM positions WHERE asset=? AND quantity>0",
                 (asset,),
@@ -703,6 +704,7 @@ class Database:
             ).fetchall()
         return {
             "signals": signals,
+            "btc_signals": btc_signals,
             "positions": [dict(row) for row in positions],
             "plans": [dict(row) for row in plans],
         }

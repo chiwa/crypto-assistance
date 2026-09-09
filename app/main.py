@@ -27,7 +27,7 @@ market = BitkubMarketData(settings.bitkub_base_url)
 scanner = Scanner(db, market)
 deepseek = DeepSeekSecondOpinion(settings.deep_seek_api_key)
 telegram = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
-realtime = RealtimeMonitor(db, telegram.send if telegram.configured else None)
+realtime = RealtimeMonitor(db, telegram.send if telegram.configured else None, deepseek=deepseek)
 scheduler = AsyncIOScheduler()
 
 
@@ -149,6 +149,7 @@ def dashboard_data():
         "snapshots": db.recent("daily_snapshots", 30),
         "integrations": {
             "deepseek": deepseek.configured,
+            "deepseek_status": "Connected" if deepseek.configured else "Unavailable",
             "telegram": telegram.configured,
         },
     }
@@ -295,36 +296,59 @@ async def ask_position_opinion(request: AskDeepSeekRequest):
     plan = portfolio.get("position_plan")
 
     signals = context.get("signals", [])
-    trend_15m = next((s["regime"] for s in signals if s["timeframe"] == "15m"), "N/A")
-    trend_1h = next((s["regime"] for s in signals if s["timeframe"] == "1h"), "N/A")
-    trend_4h = next((s["regime"] for s in signals if s["timeframe"] == "4h"), "N/A")
+    sig_15m = next((s for s in signals if s["timeframe"] == "15m"), None)
+    sig_1h = next((s for s in signals if s["timeframe"] == "1h"), None)
+    sig_4h = next((s for s in signals if s["timeframe"] == "4h"), None)
+
+    trend_15m = sig_15m["regime"] if sig_15m else "UNKNOWN"
+    trend_1h = sig_1h["regime"] if sig_1h else "UNKNOWN"
+    trend_4h = sig_4h["regime"] if sig_4h else "UNKNOWN"
+
+    primary_sig = sig_1h or sig_15m or (signals[0] if signals else None)
+    details = primary_sig.get("details", {}) if primary_sig else {}
+
+    rsi_val = details.get("rsi")
+    atr_val = details.get("atr")
+    rel_vol = details.get("relative_volume")
+
+    actual_entry_price = float(pos["average_cost"]) if pos else (float(plan["entry_price"]) if plan else 0.0)
+    current_price = float(pos["market_price"]) if pos else (float(plan["entry_price"]) if plan else 0.0)
+    quantity = float(pos["quantity"]) if pos else 0.0
+    gross_unrealized_pnl = float(pos["gross_unrealized_pnl"]) if pos else 0.0
+    gross_unrealized_pct = float(pos["gross_unrealized_pnl_percent"]) if pos else 0.0
 
     structured_ctx = {
         "symbol": request.symbol,
         "mode": norm_mode,
-        "has_open_position": pos is not None,
-        "entry_price": pos["average_cost"] if pos else (plan["entry_price"] if plan else None),
-        "current_price": pos["market_price"] if pos else None,
-        "quantity": pos["quantity"] if pos else 0.0,
-        "unrealized_pnl_thb": pos["unrealized_pnl"] if pos else 0.0,
-        "unrealized_pnl_percent": pos["unrealized_pnl_percent"] if pos else 0.0,
-        "current_action": plan["current_action"] if plan else "WAIT",
-        "action_reason": plan["action_reason"] if plan else "None",
-        "stop_loss": plan["stop_loss"] if plan else None,
-        "effective_stop": plan["effective_stop"] if plan else None,
-        "take_profit_1": plan["take_profit_1"] if plan else None,
-        "take_profit_2": plan["take_profit_2"] if plan else None,
+        "actual_entry_price": actual_entry_price,
+        "quantity": quantity,
+        "current_bitkub_price": current_price,
+        "gross_unrealized_pnl": gross_unrealized_pnl,
+        "gross_unrealized_pnl_percent": gross_unrealized_pct,
         "trend_15m": trend_15m,
         "trend_1h": trend_1h,
         "trend_4h": trend_4h,
-        "signals": [
+        "rsi": rsi_val,
+        "atr": atr_val,
+        "relative_volume": rel_vol,
+        "current_strategy": plan["strategy"] if plan else "None",
+        "current_action": plan["current_action"] if plan else "HOLD",
+        "stop": plan["stop_loss"] if plan else None,
+        "tp1": plan["take_profit_1"] if plan else None,
+        "tp2": plan["take_profit_2"] if plan else None,
+        "stop_loss": plan["stop_loss"] if plan else None,
+        "take_profit_1": plan["take_profit_1"] if plan else None,
+        "take_profit_2": plan["take_profit_2"] if plan else None,
+        "exit_reason": plan["action_reason"] if plan else "None",
+        "timeframe_signals": [
             {
                 "timeframe": s["timeframe"],
                 "signal": s["signal"],
                 "score": s["score"],
+                "regime": s["regime"],
                 "rsi": s["details"].get("rsi"),
+                "atr": s["details"].get("atr"),
                 "relative_volume": s["details"].get("relative_volume"),
-                "strategy": s["details"].get("strategy"),
             }
             for s in signals
         ],
@@ -332,6 +356,7 @@ async def ask_position_opinion(request: AskDeepSeekRequest):
 
     result = await deepseek.ask_structured(structured_ctx)
     return {
+        "status": result.get("status", "connected"),
         "analysis": result,
         "context": structured_ctx,
         "disclaimer": "ความคิดเห็นที่ 2 สำหรับประกอบการตัดสินใจเท่านั้น ไม่มีการส่งคำสั่งเทรดอัตโนมัติ",

@@ -169,9 +169,13 @@
     <section class="card span-12" id="position-monitor-card" style="border-left: 4px solid var(--accent)">
       <h2>
         <span>📌 การติดตามสถานะที่ถือครองอยู่ (Open Position Monitoring)</span>
-        <button id="btn-ask-ai" class="btn-ai btn-sm" onclick="askDeepSeekForPosition()">🤖 ถาม DeepSeek (ความเห็นที่ 2)</button>
+        <div style="display:inline-flex;align-items:center;gap:8px">
+          <span id="ai-status-indicator"></span>
+          <button id="btn-ask-ai" class="btn-ai btn-sm" onclick="askDeepSeekForPosition()">🤖 ถาม DeepSeek</button>
+        </div>
       </h2>
       <div id="position-details">กำลังตรวจสอบข้อมูลสถานะ...</div>
+      <div id="position-ai-box" style="display:none;margin-top:14px"></div>
     </section>
 
     <!-- Best Candidate Banner -->
@@ -641,6 +645,12 @@ async function loadDashboard() {
     renderCandidates(d);
     renderNotifications(d);
     renderJournal(d);
+    if (d.integrations && $('#ai-status-indicator')) {
+      const isConnected = d.integrations.deepseek;
+      $('#ai-status-indicator').innerHTML = isConnected
+        ? '<span class="badge" style="background:#064e3b;color:#34d399">AI: Connected</span>'
+        : '<span class="badge" style="background:#374151;color:#9ca3af">AI: Unavailable</span>';
+    }
   } catch (err) {
     showToast(err.message, true);
   }
@@ -691,34 +701,106 @@ async function runManualScan() {
 async function askDeepSeekForPosition() {
   const modal = $('#ai-modal');
   const content = $('#ai-modal-content');
+  const onScreenBox = $('#position-ai-box');
+  const btn = $('#btn-ask-ai');
+  const indicator = $('#ai-status-indicator');
+
   modal.classList.add('open');
   content.innerHTML = '<div style="text-align:center;padding:30px">⏳ กำลังรวบรวมบริบททางเทคนิคและส่งให้ DeepSeek AI วิเคราะห์ความเห็นที่ 2...</div>';
+  if (btn) btn.disabled = true;
+  if (indicator) indicator.innerHTML = '<span class="badge" style="background:#1e3a8a;color:#93c5fd">AI: กำลังวิเคราะห์...</span>';
+
+  // Determine current active position symbol and mode
+  const realPos = currentData && currentData.real && currentData.real.positions && currentData.real.positions[0];
+  const symbol = realPos ? realPos.asset + '/THB' : 'DOGE/THB';
+  const mode = realPos ? 'MANUAL_REAL' : 'MANUAL_REAL';
 
   try {
     const res = await api('/api/ai/ask-position', {
       method: 'POST',
-      body: JSON.stringify({ symbol: 'DOGE/THB', mode: 'MANUAL_REAL' })
+      body: JSON.stringify({ symbol, mode })
     });
     const a = res.analysis || {};
-    content.innerHTML = `
-      <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;margin-bottom:14px">
-        <h4 style="margin:0 0 6px 0;color:var(--accent)">1. การประเมินภาพรวม (Assessment)</h4>
-        <p style="margin:0">${a.assessment || 'N/A'}</p>
+    const status = a.status || res.status || 'connected';
+
+    // Update safe status badge
+    if (indicator) {
+      if (status === 'connected') {
+        indicator.innerHTML = '<span class="badge" style="background:#064e3b;color:#34d399">AI: Connected</span>';
+      } else if (status === 'unavailable') {
+        indicator.innerHTML = '<span class="badge" style="background:#374151;color:#9ca3af">AI: Unavailable</span>';
+      } else if (status === 'timeout') {
+        indicator.innerHTML = '<span class="badge" style="background:#854d0e;color:#fde047">AI: Timeout</span>';
+      } else {
+        indicator.innerHTML = '<span class="badge" style="background:#7f1d1d;color:#fca5a5">AI: Error</span>';
+      }
+    }
+
+    const risksList = Array.isArray(a.key_risks) && a.key_risks.length
+      ? `<ul style="margin:4px 0 0 18px;padding:0">${a.key_risks.map(r => `<li>${r}</li>`).join('')}</ul>`
+      : (a.key_risks || 'ไม่มี');
+    const watchList = Array.isArray(a.watch_next) && a.watch_next.length
+      ? `<ul style="margin:4px 0 0 18px;padding:0">${a.watch_next.map(w => `<li>${w}</li>`).join('')}</ul>`
+      : (a.watch_next || 'ไม่มี');
+
+    const resultHtml = `
+      <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <h4 style="margin:0;color:var(--accent)">1. การประเมินภาพรวม (Assessment)</h4>
+          <span class="badge" style="background:#2c1a3a;color:#c39bd3">ความมั่นใจ: ${a.confidence || 'N/A'}</span>
+        </div>
+        <p style="margin:0;color:var(--ink)">${a.assessment || 'N/A'}</p>
       </div>
-      <div style="margin-bottom:10px"><b>ระดับความมั่นใจ:</b> <span class="badge" style="background:#2c1a3a;color:#c39bd3">${a.confidence || 'N/A'}</span></div>
-      <div style="margin-bottom:10px"><b style="color:var(--accent)">มุมมองเชิงบวก (Bull Case):</b> ${a.bull_case || 'N/A'}</div>
-      <div style="margin-bottom:10px"><b style="color:var(--bad)">มุมมองเชิงลบ (Bear Case):</b> ${a.bear_case || 'N/A'}</div>
-      <div style="margin-bottom:10px"><b style="color:var(--warning)">ความเสี่ยงสำคัญ (Key Risks):</b> ${a.key_risks || 'N/A'}</div>
-      <div style="background:#11221b;padding:12px;border-radius:8px;border:1px solid var(--accent);margin-top:14px">
-        <h4 style="margin:0 0 6px 0;color:#58d68d">สรุปคำแนะนำเพื่อการตัดสินใจ</h4>
-        <p style="margin:0">${a.summary || 'N/A'}</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;margin-bottom:12px">
+        <div style="background:#081711;border:1px solid #143525;padding:10px;border-radius:6px">
+          <b style="color:#34d399">มุมมองเชิงบวก (Bull Case):</b>
+          <div style="margin-top:4px;color:var(--ink)">${a.bull_case || 'N/A'}</div>
+        </div>
+        <div style="background:#1c0d12;border:1px solid #3d141e;padding:10px;border-radius:6px">
+          <b style="color:#f87171">มุมมองเชิงลบ (Bear Case):</b>
+          <div style="margin-top:4px;color:var(--ink)">${a.bear_case || 'N/A'}</div>
+        </div>
       </div>
-      <p style="font-size:11px;color:var(--muted);margin-top:14px">
+      <div style="background:#181308;border:1px solid #3e2e0a;padding:10px;border-radius:6px;margin-bottom:10px">
+        <b style="color:#fbbf24">ความเสี่ยงสำคัญ (Key Risks):</b>
+        ${risksList}
+      </div>
+      <div style="background:#0d1821;border:1px solid #1c3247;padding:10px;border-radius:6px;margin-bottom:12px">
+        <b style="color:#60a5fa">สิ่งที่ต้องจับตาต่อไป (Watch Next):</b>
+        ${watchList}
+      </div>
+      <div style="background:#11221b;padding:12px;border-radius:8px;border:1px solid var(--accent)">
+        <h4 style="margin:0 0 6px 0;color:#58d68d">บทสรุปคำแนะนำเพื่อประกอบการตัดสินใจ (Summary)</h4>
+        <p style="margin:0;color:var(--ink)">${a.summary || 'N/A'}</p>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:12px">
         ⚠️ คำเตือน: ข้อความข้างต้นเป็นความเห็นที่ 2 ประกอบการตัดสินใจเท่านั้น ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการเทรดจริงบนกระดานด้วยตนเอง
       </p>
     `;
+
+    content.innerHTML = resultHtml;
+
+    // Also display result on the position screen
+    if (onScreenBox) {
+      onScreenBox.style.display = 'block';
+      onScreenBox.innerHTML = `
+        <div style="border-top:1px dashed #1e3a5f;padding-top:12px;margin-top:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <b style="color:var(--accent)">🤖 ความเห็นที่ 2 จาก DeepSeek (ล่าสุด):</b>
+            <span class="badge" style="background:#2c1a3a;color:#c39bd3">ความมั่นใจ: ${a.confidence || 'N/A'}</span>
+          </div>
+          <div style="font-size:13px;color:var(--ink);margin-bottom:8px"><b>การประเมิน:</b> ${a.assessment || 'N/A'}</div>
+          <div style="font-size:13px;color:#58d68d;margin-bottom:8px"><b>บทสรุป:</b> ${a.summary || 'N/A'}</div>
+          <div style="font-size:12px"><a href="javascript:void(0)" onclick="$('#ai-modal').classList.add('open')" style="color:var(--accent)">🔍 ดูรายละเอียดความเห็นทั้งหมด (Bull/Bear/Risks/Watch)</a></div>
+        </div>
+      `;
+    }
   } catch (err) {
-    content.innerHTML = `<div style="color:var(--bad);padding:20px">เกิดข้อผิดพลาดในการเรียก DeepSeek: ${err.message}</div>`;
+    const errorMsg = err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+    content.innerHTML = `<div style="color:var(--bad);padding:20px">เกิดข้อผิดพลาดในการเรียก DeepSeek: ${errorMsg}</div>`;
+    if (indicator) indicator.innerHTML = '<span class="badge" style="background:#7f1d1d;color:#fca5a5">AI: Error</span>';
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
