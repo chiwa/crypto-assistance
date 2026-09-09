@@ -44,6 +44,7 @@ def test_portfolio_guard_suppresses_buy_now_when_position_open(tmp_path):
     mock_telegram = AsyncMock()
     mock_deepseek = MagicMock()
     mock_deepseek.configured = True
+    mock_deepseek.ask_buy_opinion = AsyncMock()
     mock_deepseek.ask_sell_opinion = AsyncMock()
     mock_deepseek.ask_structured = AsyncMock()
 
@@ -64,6 +65,7 @@ def test_portfolio_guard_suppresses_buy_now_when_position_open(tmp_path):
     mock_telegram.assert_not_called()
 
     # Verify DeepSeek: NOT called
+    mock_deepseek.ask_buy_opinion.assert_not_called()
     mock_deepseek.ask_sell_opinion.assert_not_called()
     mock_deepseek.ask_structured.assert_not_called()
 

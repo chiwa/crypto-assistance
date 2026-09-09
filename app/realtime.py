@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 PAIR_TO_WS = {pair: f"thb_{pair.split('/')[0].lower()}" for pair in PAIR_TO_SYMBOL}
 AI_SELL_SIGNAL_COOLDOWN_SECONDS = 15 * 60  # 15 minutes
+AI_BUY_SIGNAL_COOLDOWN_SECONDS = 15 * 60  # 15 minutes
 
 
 class RealtimeMonitor:
@@ -29,15 +30,18 @@ class RealtimeMonitor:
         telegram_send: Callable[[str], Awaitable[None]] | None = None,
         deepseek: DeepSeekSecondOpinion | None = None,
         ai_sell_cooldown_seconds: int = AI_SELL_SIGNAL_COOLDOWN_SECONDS,
+        ai_buy_cooldown_seconds: int = AI_BUY_SIGNAL_COOLDOWN_SECONDS,
     ):
         self.db = db
         self.telegram_send = telegram_send
         self.deepseek = deepseek
         self.ai_sell_cooldown_seconds = ai_sell_cooldown_seconds
+        self.ai_buy_cooldown_seconds = ai_buy_cooldown_seconds
         self.connected = False
         self.last_event_at: float | None = None
         self._last_alert: dict[str, float] = {}
         self._last_ai_sell_opinion: dict[str, float] = {}
+        self._last_ai_buy_opinion: dict[str, float] = {}
         self._last_candidate_status: dict[str, str] = {}
         self._ws_disconnected_notified = False
         self._stop = asyncio.Event()
@@ -130,19 +134,38 @@ class RealtimeMonitor:
                     else:
                         details = buys[0]["details"]
                         score = round(sum(s["score"] for s in signals) / len(signals))
-                        msg = (
-                            f"🚨 ซื้อได้ตอนนี้ · {pair}\n\n"
-                            f"ราคาปัจจุบัน: {price:,.4f} บาท\n"
-                            f"โซนเข้า: {entry_low:,.4f} - {entry_high:,.4f} บาท\n"
-                            f"Stop Loss: {details.get('stop_loss', reference * 0.98):,.4f} บาท\n"
-                            f"TP1: {details.get('take_profit_1', reference * 1.03):,.4f} บาท\n"
-                            f"TP2: {details.get('take_profit_2', reference * 1.05):,.4f} บาท\n"
-                            f"คะแนน: {score}\n"
-                            f"เหตุผล: ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes ราคาอยู่ในโซนเข้า\n"
-                            f"เวลา: {now_bkk}\n\n"
-                            f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ"
+                        is_high_conviction = (
+                            score >= 80
+                            and len(buys) >= 3
+                            and len(buys) == len(signals)
                         )
-                        candidates.append(("BUY_NOW", msg, {"price": price, "score": score}))
+                        if is_high_conviction:
+                            await self._handle_buy_now_with_ai(
+                                pair=pair,
+                                price=price,
+                                entry_low=entry_low,
+                                entry_high=entry_high,
+                                reference=reference,
+                                details=details,
+                                score=score,
+                                signals=signals,
+                                buys=buys,
+                                context=context,
+                            )
+                        else:
+                            msg = (
+                                f"🚨 ซื้อได้ตอนนี้ · {pair}\n\n"
+                                f"ราคาปัจจุบัน: {price:,.4f} บาท\n"
+                                f"โซนเข้า: {entry_low:,.4f} - {entry_high:,.4f} บาท\n"
+                                f"Stop Loss: {details.get('stop_loss', reference * 0.98):,.4f} บาท\n"
+                                f"TP1: {details.get('take_profit_1', reference * 1.03):,.4f} บาท\n"
+                                f"TP2: {details.get('take_profit_2', reference * 1.05):,.4f} บาท\n"
+                                f"คะแนน: {score}\n"
+                                f"เหตุผล: ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes ราคาอยู่ในโซนเข้า\n"
+                                f"เวลา: {now_bkk}\n\n"
+                                f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ"
+                            )
+                            candidates.append(("BUY_NOW", msg, {"price": price, "score": score}))
 
             # Candidate status tracking for state transitions:
             # WAIT -> WATCH, WATCH -> BUY_NOW, BUY_NOW -> no longer valid
@@ -309,6 +332,166 @@ class RealtimeMonitor:
             meta = item[2] if len(item) > 2 and isinstance(item[2], dict) else {}
             force = meta.get("force_state_change", False)
             await self._alert(kind, pair, message, force_state_change=force)
+
+    async def _handle_buy_now_with_ai(
+        self,
+        pair: str,
+        price: float,
+        entry_low: float,
+        entry_high: float,
+        reference: float,
+        details: dict,
+        score: int,
+        signals: list[dict],
+        buys: list[dict],
+        context: dict,
+    ):
+        now_mono = time.monotonic()
+        alert_key = f"BUY_NOW:{pair}"
+        alert_cooldown = self.db.settings().get("realtime_alert_cooldown_seconds", 300)
+        last_alert_time = self._last_alert.get(alert_key)
+        if last_alert_time is not None and (now_mono - last_alert_time) < alert_cooldown:
+            return
+
+        now_bkk = datetime.now(ZoneInfo("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
+        stop_loss_val = float(details.get("stop_loss", reference * 0.98))
+        tp1_val = float(details.get("take_profit_1", reference * 1.03))
+        tp2_val = float(details.get("take_profit_2", reference * 1.05))
+
+        sig_15m = next((s for s in signals if s.get("timeframe") == "15m"), None)
+        sig_1h = next((s for s in signals if s.get("timeframe") == "1h"), None)
+        sig_4h = next((s for s in signals if s.get("timeframe") == "4h"), None)
+
+        trend_15m = sig_15m.get("regime", "UNKNOWN") if sig_15m else "UNKNOWN"
+        trend_1h = sig_1h.get("regime", "UNKNOWN") if sig_1h else "UNKNOWN"
+        trend_4h = sig_4h.get("regime", "UNKNOWN") if sig_4h else "UNKNOWN"
+
+        primary_sig = sig_1h or sig_15m or (signals[0] if signals else None)
+        sig_details = primary_sig.get("details", {}) if primary_sig else details
+
+        ema_9 = sig_details.get("ema_9", sig_details.get("ema_fast"))
+        ema_20 = sig_details.get("ema_20", sig_details.get("ema_slow"))
+        ema_50 = sig_details.get("ema_50")
+        rsi_val = sig_details.get("rsi")
+        atr_val = sig_details.get("atr")
+        rel_vol = sig_details.get("relative_volume")
+        market_regime = primary_sig.get("regime", "UNKNOWN") if primary_sig else "UNKNOWN"
+
+        btc_signals = context.get("btc_signals", [])
+        btc_primary = (
+            next((s for s in btc_signals if s.get("timeframe") == "4h"), None)
+            or next((s for s in btc_signals if s.get("timeframe") == "1h"), None)
+            or (btc_signals[0] if btc_signals else None)
+        )
+        btc_market_bias = btc_primary.get("regime", "NEUTRAL") if btc_primary else "NEUTRAL"
+        strategy = details.get("strategy") or "Deterministic High-Conviction Trend"
+
+        ai_cooldown_key = f"{pair}:BUY_NOW"
+        last_ai_time = self._last_ai_buy_opinion.get(ai_cooldown_key)
+        in_ai_cooldown = (last_ai_time is not None) and ((now_mono - last_ai_time) < self.ai_buy_cooldown_seconds)
+
+        if in_ai_cooldown:
+            ai_section = (
+                "🤖 ความเห็นที่ 2 จาก DeepSeek:\n"
+                f"(ข้ามการเรียก AI ซ้ำ — อยู่ในช่วง Cooldown {self.ai_buy_cooldown_seconds // 60} นาที)"
+            )
+        else:
+            self._last_ai_buy_opinion[ai_cooldown_key] = now_mono
+            ai_ctx = {
+                "symbol": pair,
+                "current_bitkub_price": price,
+                "entry_zone": f"{entry_low:,.4f} - {entry_high:,.4f}",
+                "reference_price": round(reference, 4),
+                "stop_loss": stop_loss_val,
+                "take_profit_1": tp1_val,
+                "take_profit_2": tp2_val,
+                "score": score,
+                "confirmed_timeframes": f"{len(buys)}/{len(signals)}",
+                "trend_15m": trend_15m,
+                "trend_1h": trend_1h,
+                "trend_4h": trend_4h,
+                "ema_structure": {
+                    "ema_9": ema_9,
+                    "ema_20": ema_20,
+                    "ema_50": ema_50,
+                },
+                "rsi": rsi_val,
+                "atr": atr_val,
+                "relative_volume": rel_vol,
+                "strategy": strategy,
+                "market_regime": market_regime,
+                "btc_market_bias": btc_market_bias,
+            }
+
+            if self.deepseek and self.deepseek.configured:
+                try:
+                    ai_opinion = await asyncio.wait_for(self.deepseek.ask_buy_opinion(ai_ctx), timeout=10.0)
+                except Exception as exc:
+                    logger.warning(f"DeepSeek buy opinion call failed or timed out: {exc}")
+                    ai_opinion = {
+                        "status": "timeout" if isinstance(exc, asyncio.TimeoutError) else "error",
+                        "assessment": "AI analysis unavailable",
+                        "confidence": 0.0,
+                        "bull_case": "N/A",
+                        "bear_case": "N/A",
+                        "key_risks": ["AI analysis unavailable"],
+                        "watch_next": ["ยึดตามสัญญาณเทคนิคและ Stop Loss ของระบบ"],
+                        "summary": "AI analysis unavailable - ระบบยังคงใช้การคำนวณแบบ Deterministic",
+                    }
+            else:
+                ai_opinion = {
+                    "status": "unavailable",
+                    "assessment": "AI analysis unavailable",
+                    "confidence": 0.0,
+                    "bull_case": "N/A",
+                    "bear_case": "N/A",
+                    "key_risks": ["AI analysis unavailable"],
+                    "watch_next": ["ยึดตามสัญญาณเทคนิคและ Stop Loss ของระบบ"],
+                    "summary": "AI analysis unavailable",
+                }
+
+            status = ai_opinion.get("status", "error")
+            is_unavailable = (
+                status in {"timeout", "error", "unavailable"}
+                or "AI analysis unavailable" in str(ai_opinion.get("assessment", ""))
+            )
+
+            if is_unavailable:
+                ai_section = (
+                    "🤖 ความเห็นที่ 2 จาก DeepSeek:\n"
+                    "AI analysis unavailable"
+                )
+            else:
+                conf = ai_opinion.get("confidence", 0.0)
+                conf_text = f"{conf:.2f} ({conf * 100:.0f}%)" if isinstance(conf, (int, float)) else str(conf)
+                risks = ai_opinion.get("key_risks", [])
+                risks_str = "\n".join(f"  • {r}" for r in risks) if isinstance(risks, list) else str(risks)
+                watch = ai_opinion.get("watch_next", [])
+                watch_str = "\n".join(f"  • {w}" for w in watch) if isinstance(watch, list) else str(watch)
+
+                ai_section = (
+                    f"🤖 ความเห็นที่ 2 จาก DeepSeek:\n"
+                    f"• การประเมิน: {ai_opinion.get('assessment', 'N/A')} (ความมั่นใจ: {conf_text})\n"
+                    f"• ปัจจัยบวก (Bull Case): {ai_opinion.get('bull_case', 'N/A')}\n"
+                    f"• ปัจจัยเสี่ยง (Bear Case): {ai_opinion.get('bear_case', 'N/A')}\n"
+                    f"• ความเสี่ยงสำคัญ (Key Risks):\n{risks_str}\n"
+                    f"• สิ่งที่ต้องจับตาต่อไป (Watch Next):\n{watch_str}\n"
+                    f"• บทสรุป (Summary): {ai_opinion.get('summary', 'N/A')}"
+                )
+
+        msg = (
+            f"🚨 ซื้อได้ตอนนี้ (BUY_NOW) · {pair}\n\n"
+            f"ราคาปัจจุบัน: {price:,.4f} บาท\n"
+            f"โซนเข้า: {entry_low:,.4f} - {entry_high:,.4f} บาท\n"
+            f"Stop Loss: {stop_loss_val:,.4f} บาท\n"
+            f"TP1: {tp1_val:,.4f} บาท | TP2: {tp2_val:,.4f} บาท\n"
+            f"คะแนน: {score} (ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes)\n"
+            f"เหตุผล: ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes ราคาอยู่ในโซนเข้า\n"
+            f"เวลา: {now_bkk}\n\n"
+            f"{ai_section}\n\n"
+            f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการบน Bitkub ด้วยตนเอง"
+        )
+        await self._alert("BUY_NOW", pair, msg)
 
     async def _handle_sell_now_with_ai(
         self,

@@ -317,6 +317,144 @@ class DeepSeekSecondOpinion:
                 "summary": "AI analysis unavailable - โปรดยึดตามสัญญาณเทคนิคของระบบหลัก",
             }
 
+    async def ask_buy_opinion(self, context: dict) -> dict:
+        """DeepSeek second opinion for high-conviction BUY_NOW signals.
+        DeepSeek must NOT create the BUY_NOW signal. It only analyzes an already-existing deterministic buy decision.
+        """
+        if not self.configured:
+            return {
+                "status": "unavailable",
+                "assessment": "AI analysis unavailable",
+                "confidence": 0.0,
+                "bull_case": "N/A",
+                "bear_case": "N/A",
+                "key_risks": ["AI analysis unavailable", "ไม่ได้กำหนดค่า DEEP_SEEK_API_KEY ในระบบ"],
+                "watch_next": ["ยึดตามสัญญาณเทคนิคและระดับ Stop Loss / TP ของระบบ Deterministic"],
+                "summary": "AI analysis unavailable - ระบบใช้การคำนวณแบบ Deterministic 100%",
+            }
+
+        system_prompt = (
+            "คุณคือผู้ช่วยวิเคราะห์ทางเทคนิคสำหรับคริปโต (Second-opinion technical analyst)\n"
+            "หน้าที่ของคุณคือให้ความเห็นประกอบการพิจารณาซื้อ (BUY_NOW second opinion) "
+            "โดยวิเคราะห์สัญญาณซื้อที่มีความเชื่อมั่นสูง (High-conviction BUY) ที่คำนวณได้จากระบบเทคนิค (Deterministic Signal Engine) ของระบบหลัก\n\n"
+            "ข้อกำหนดและข้อห้ามอย่างเด็ดขาด:\n"
+            "1. คุณไม่ได้เป็นผู้สร้างสัญญาณ BUY_NOW ระบบหลักเป็นผู้ตัดสินใจทางเทคนิคไว้แล้ว คุณมีหน้าที่ให้ความเห็นที่สองเท่านั้น (DeepSeek must NOT create the BUY_NOW signal. It only analyzes an already-existing deterministic buy decision.)\n"
+            "2. ห้ามดึงราคาจากภายนอกหรือสร้างข้อมูลที่ไม่มีอยู่ขึ้นมาเอง (Do not fetch market prices or invent missing data) ให้ใช้เฉพาะตัวเลขเชิงสถิติและบริบททางเทคนิคที่ได้รับเท่านั้น\n"
+            "3. ห้ามสั่งเปิด/ปิดสถานะ หรือเปลี่ยนแปลงสถานะการเทรดในพอร์ตโฟลิโอ (Do not change trading state or open/close positions)\n"
+            "4. ห้ามเปลี่ยนแปลงหรือกำหนดจุด Stop Loss / Take Profit ขึ้นมาใหม่แทนระบบหลัก (Do not invent or override stop/TP levels)\n"
+            "5. ห้ามแนะนำให้ซื้อเฉลี่ยขาลงเด็ดขาด (Never recommend averaging down)\n"
+            "6. ห้ามคำนวณบัญชีหรือดัดแปลงพอร์ตโฟลิโอ\n\n"
+            "รูปแบบการตอบ:\n"
+            "ต้องตอบเป็น JSON ภาษาไทยที่มีโครงสร้างตามคีย์ดังนี้เท่านั้น โดย confidence ต้องเป็นตัวเลข float ระหว่าง 0.0 ถึง 1.0:\n"
+            "{\n"
+            '  "assessment": "การประเมินสัญญาณซื้อในภาพรวม",\n'
+            '  "confidence": 0.85,\n'
+            '  "bull_case": "มุมมองเชิงบวกและปัจจัยทางเทคนิคที่สนับสนุนการปรับตัวขึ้น",\n'
+            '  "bear_case": "มุมมองเชิงระมัดระวังหรือความเสี่ยงหากราคาไม่เป็นไปตามคาด",\n'
+            '  "key_risks": ["ความเสี่ยงสำคัญข้อที่ 1", "ความเสี่ยงสำคัญข้อที่ 2"],\n'
+            '  "watch_next": ["สิ่งที่ต้องจับตาข้อที่ 1", "สิ่งที่ต้องจับตาข้อที่ 2"],\n'
+            '  "summary": "บทสรุปความเห็นที่สองเพื่อประกอบการพิจารณาของผู้ใช้"\n'
+            "}"
+        )
+
+        user_prompt = (
+            f"กรุณาวิเคราะห์สัญญาณซื้อ BUY_NOW สำหรับเหรียญต่อไปนี้:\n"
+            f"{json.dumps(context, ensure_ascii=False, indent=2)}\n\n"
+            f"จงตอบเป็น JSON ภาษาไทยตามโครงสร้างที่กำหนดเท่านั้น โดย confidence ต้องเป็นตัวเลข float ระหว่าง 0.0 ถึง 1.0"
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "response_format": {"type": "json_object"},
+                        "temperature": 0.2,
+                    },
+                )
+                response.raise_for_status()
+                content = response.json()["choices"][0]["message"]["content"]
+                parsed = json.loads(content)
+
+                def _parse_confidence(val) -> float:
+                    if isinstance(val, (int, float)):
+                        return round(max(0.0, min(1.0, float(val))), 2)
+                    if isinstance(val, str):
+                        cleaned = val.replace("%", "").strip()
+                        try:
+                            num = float(cleaned)
+                            if num > 1.0:
+                                num = num / 100.0
+                            return round(max(0.0, min(1.0, num)), 2)
+                        except ValueError:
+                            return 0.5
+                    return 0.5
+
+                def _ensure_list(val) -> list[str]:
+                    if isinstance(val, list):
+                        return [str(x) for x in val if x]
+                    if isinstance(val, str) and val.strip():
+                        lines = [line.strip("- *• \t\r") for line in val.split("\n") if line.strip()]
+                        return lines if lines else [val.strip()]
+                    return []
+
+                return {
+                    "status": "connected",
+                    "assessment": str(parsed.get("assessment", "ประเมินสัญญาณซื้อตามระบบเทคนิค")),
+                    "confidence": _parse_confidence(parsed.get("confidence", 0.7)),
+                    "bull_case": str(parsed.get("bull_case", "สัญญาณและแนวโน้มขาขึ้นสอดคล้องทุกกรอบเวลา")),
+                    "bear_case": str(parsed.get("bear_case", "ระมัดระวังความผันผวนหากไม่ผ่านแนวต้าน")),
+                    "key_risks": _ensure_list(parsed.get("key_risks")) or ["ความผันผวนของราคา"],
+                    "watch_next": _ensure_list(parsed.get("watch_next")) or ["เฝ้าระวังระดับราคาและ Stop Loss"],
+                    "summary": str(parsed.get("summary", "โปรดยึดหลักวินัยการเทรดและจุด Stop Loss เป็นสำคัญ")),
+                }
+        except httpx.TimeoutException:
+            logger.warning("DeepSeek buy opinion call timed out")
+            return {
+                "status": "timeout",
+                "assessment": "AI analysis unavailable",
+                "confidence": 0.0,
+                "bull_case": "N/A",
+                "bear_case": "N/A",
+                "key_risks": ["AI analysis unavailable", "การเชื่อมต่อหมดเวลา"],
+                "watch_next": ["ยึดตามระดับ Stop Loss และสัญญาณของระบบ Deterministic"],
+                "summary": "AI analysis unavailable - หมดเวลาเชื่อมต่อ โปรดยึดตามสัญญาณเทคนิคของระบบหลัก",
+            }
+        except (json.JSONDecodeError, KeyError, TypeError) as parse_exc:
+            logger.warning(f"DeepSeek buy opinion returned malformed JSON: {parse_exc}")
+            return {
+                "status": "error",
+                "assessment": "AI analysis unavailable",
+                "confidence": 0.0,
+                "bull_case": "N/A",
+                "bear_case": "N/A",
+                "key_risks": ["AI analysis unavailable", "รูปแบบข้อมูลไม่ถูกต้อง"],
+                "watch_next": ["ยึดตามระดับ Stop Loss และสัญญาณของระบบ Deterministic"],
+                "summary": "AI analysis unavailable - รูปแบบข้อมูลจาก AI ไม่ถูกต้อง ยึดตามสัญญาณเทคนิคของระบบหลัก",
+            }
+        except Exception as exc:
+            err_msg = str(exc)
+            if self.api_key and self.api_key in err_msg:
+                err_msg = err_msg.replace(self.api_key, "[REDACTED_API_KEY]")
+            logger.warning(f"DeepSeek buy opinion call failed: {err_msg}")
+            return {
+                "status": "error",
+                "assessment": "AI analysis unavailable",
+                "confidence": 0.0,
+                "bull_case": "N/A",
+                "bear_case": "N/A",
+                "key_risks": ["AI analysis unavailable", f"เกิดข้อผิดพลาด: {err_msg}"],
+                "watch_next": ["ยึดตามระดับ Stop Loss และสัญญาณของระบบ Deterministic"],
+                "summary": "AI analysis unavailable - โปรดยึดตามสัญญาณเทคนิคของระบบหลัก",
+            }
+
+
 
 class TelegramNotifier:
     def __init__(self, token: str | None, chat_id: str | None):
