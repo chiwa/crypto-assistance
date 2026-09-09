@@ -1380,13 +1380,32 @@ function showToast(msg, isError = false) {
   showToast.timer = setTimeout(() => { s.className = ''; }, 5000);
 }
 
+function formatErrorMessage(detail, fallback = 'เกิดข้อผิดพลาดในการประมวลผล') {
+  if (!detail) return fallback;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map(item => {
+      if (typeof item === 'string') return item;
+      if (item && item.msg) {
+        const field = Array.isArray(item.loc) ? item.loc.slice(-1)[0] : '';
+        return field ? `${field}: ${item.msg}` : item.msg;
+      }
+      return JSON.stringify(item);
+    }).join('; ');
+  }
+  if (typeof detail === 'object') {
+    return detail.message || detail.msg || JSON.stringify(detail);
+  }
+  return String(detail);
+}
+
 async function api(url, options = {}) {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.detail || 'เกิดข้อผิดพลาดในการส่งคำขอ');
+  if (!res.ok) throw new Error(formatErrorMessage(json.detail, 'เกิดข้อผิดพลาดในการส่งคำขอ'));
   return json;
 }
 
@@ -2198,7 +2217,10 @@ async function sendAssistantMessage(messageText) {
   const typingIndicator = $('#assistant-typing-indicator');
 
   // Maintain bounded history to send (last 10 messages)
-  const historyToSend = assistantChatHistory.slice(-10);
+  const historyToSend = assistantChatHistory.slice(-10).map(m => ({
+    role: m.role,
+    content: (m.content || '').slice(0, 8000)
+  }));
 
   // Add user message to UI
   appendAssistantMessage('user', text);
@@ -2227,7 +2249,7 @@ async function sendAssistantMessage(messageText) {
     const data = await res.json();
 
     if (!res.ok) {
-      const errMsg = data.detail || 'เกิดข้อผิดพลาดในการติดต่อ DeepSeek';
+      const errMsg = formatErrorMessage(data.detail, 'เกิดข้อผิดพลาดในการติดต่อ DeepSeek');
       appendAssistantMessage('assistant', `⚠️ ${errMsg}`, true);
       return;
     }
@@ -2242,7 +2264,8 @@ async function sendAssistantMessage(messageText) {
       assistantChatHistory = assistantChatHistory.slice(-20);
     }
   } catch (err) {
-    appendAssistantMessage('assistant', `⚠️ ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้: ${err.message || err}`, true);
+    const errText = err && err.message ? err.message : String(err);
+    appendAssistantMessage('assistant', `⚠️ ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้: ${errText}`, true);
   } finally {
     if (inputEl) {
       inputEl.disabled = false;

@@ -29,20 +29,33 @@ def test_chat_request_schema_validation():
     assert len(req2.history) == 2
     assert req2.history[0].role == "user"
 
+    # Valid with long assistant response (e.g. detailed technical analysis)
+    req_long = ChatRequest(
+        message="สรุปสถานะอีกครั้ง",
+        history=[
+            ChatMessage(role="assistant", content="ข้อความวิเคราะห์ยาว " * 200),
+        ],
+    )
+    assert len(req_long.history) == 1
+
     # Empty message rejection
     with pytest.raises(Exception):
         ChatRequest(message="")
 
-    # Message exceeding 1000 chars rejection
+    # Message exceeding 2000 chars rejection
     with pytest.raises(Exception):
-        ChatRequest(message="a" * 1001)
+        ChatRequest(message="a" * 2001)
 
-    # History exceeding 10 messages rejection
+    # History exceeding 20 messages rejection
     with pytest.raises(Exception):
         ChatRequest(
             message="ทดสอบ",
-            history=[ChatMessage(role="user", content=f"msg {i}") for i in range(11)],
+            history=[ChatMessage(role="user", content=f"msg {i}") for i in range(21)],
         )
+
+    # Content exceeding 10000 chars rejection
+    with pytest.raises(Exception):
+        ChatMessage(role="assistant", content="a" * 10001)
 
     # Invalid role rejection
     with pytest.raises(Exception):
@@ -256,3 +269,6 @@ def test_index_html_ui_elements():
 
     # Verify router includes assistant
     assert "'assistant'" in html
+
+    # Verify error formatting to prevent [object Object]
+    assert "formatErrorMessage" in html
