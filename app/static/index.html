@@ -894,6 +894,19 @@
           </div>
         </form>
       </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">
+          <span>🧪 ทดสอบการแจ้งเตือน Telegram (Telegram Alert Preview)</span>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-top:0;line-height:1.6">
+          ทดสอบส่งข้อความแจ้งเตือนจำลองผ่านบอท Telegram โดยใช้ Format และ Pipeline เดียวกันกับสัญญาณจริง ปลอดภัย 100% ไม่มีการเปิด/ปิด หรือแก้ไขข้อมูลสถานะ พอร์ต และประวัติการเทรดใดๆ ในระบบ
+        </p>
+        <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">
+          <button type="button" class="btn-secondary" id="btn-test-buy-alert" onclick="sendTestAlert('buy')">🧪 ทดสอบ Telegram BUY</button>
+          <button type="button" class="btn-secondary" id="btn-test-sell-alert" onclick="sendTestAlert('sell')">🧪 ทดสอบ Telegram SELL</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1653,6 +1666,31 @@ $('#settings-form').onsubmit = async e => {
     showToast(err.message, true);
   }
 };
+
+async function sendTestAlert(type) {
+  const btn = type === 'buy' ? $('#btn-test-buy-alert') : $('#btn-test-sell-alert');
+  const origText = btn ? btn.textContent : '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่งทดสอบ...';
+    }
+    const res = await api(`/api/test-alert/${type}`, { method: 'POST' });
+    showToast(res.message || 'ส่งข้อความทดสอบสำเร็จ');
+  } catch (err) {
+    if (err.message.includes('ยังไม่ได้กำหนดค่า')) {
+      showToast(err.message, true);
+    } else {
+      const msg = err.message.startsWith('ส่งไม่สำเร็จ:') ? err.message : `ส่งไม่สำเร็จ: ${err.message}`;
+      showToast(msg, true);
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  }
+}
 
 // Calculate hints
 $('#trade-form').addEventListener('input', () => {

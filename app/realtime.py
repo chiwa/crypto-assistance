@@ -21,6 +21,240 @@ AI_SELL_SIGNAL_COOLDOWN_SECONDS = 15 * 60  # 15 minutes
 AI_BUY_SIGNAL_COOLDOWN_SECONDS = 15 * 60  # 15 minutes
 
 
+def format_bullets(val) -> str:
+    if isinstance(val, list):
+        items = [f"• {item}" for item in val if item]
+        return "\n".join(items) if items else "• N/A"
+    if isinstance(val, str):
+        lines = [line.strip("- *• \t\r") for line in val.split("\n") if line.strip()]
+        if len(lines) > 1:
+            return "\n".join(f"• {line}" for line in lines)
+        return f"• {val.strip()}" if val.strip() else "• N/A"
+    return "• N/A"
+
+
+def format_buy_alert(
+    pair: str,
+    price: float,
+    entry_low: float,
+    entry_high: float,
+    reference: float,
+    stop_loss: float,
+    tp1: float,
+    tp2: float,
+    score: int,
+    confirmed_timeframes: str,
+    strategy: str,
+    regime: str,
+    btc_bias: str | None = None,
+    ai_opinion: dict | None = None,
+    ai_section: str | None = None,
+    risk_reward: str | None = None,
+    suggested_allocation: float | None = None,
+    risk_amount: float | None = None,
+    is_test: bool = False,
+    now_str: str | None = None,
+) -> str:
+    prefix = "🧪 TEST ALERT — ไม่ใช่สัญญาณจริง\n\n" if is_test else ""
+    title = f"{prefix}🚨 ซื้อได้ตอนนี้ · {pair}" + ("" if is_test else " (BUY_NOW)")
+
+    regime_map = {
+        "TRENDING_UP": "แนวโน้มขาขึ้น",
+        "UPTREND": "แนวโน้มขาขึ้น",
+        "TRENDING_DOWN": "แนวโน้มขาลง",
+        "DOWNTREND": "แนวโน้มขาลง",
+        "SIDEWAYS": "ตลาดไซด์เวย์",
+        "RANGE": "ตลาดไซด์เวย์",
+    }
+    regime_th = regime_map.get(str(regime).upper(), str(regime))
+
+    if is_test:
+        score_line = f"คะแนนระบบ: {score}/100"
+    else:
+        score_line = f"คะแนนระบบ: {score}/100 (คะแนน: {score})"
+
+    def _fmt_price_val(val: float) -> str:
+        if is_test:
+            if val >= 100:
+                if val == int(val):
+                    return f"{int(val):,} THB"
+                return f"{val:,.2f} THB"
+            return f"{val:,.4f} THB"
+        return f"{val:,.4f} THB"
+
+    def _fmt_zone_val(low: float, high: float) -> str:
+        if is_test and low >= 100 and high >= 100:
+            l_str = f"{int(low):,}" if low == int(low) else f"{low:,.2f}"
+            h_str = f"{int(high):,}" if high == int(high) else f"{high:,.2f}"
+            return f"{l_str} - {h_str} THB"
+        return f"{low:,.4f} - {high:,.4f} THB"
+
+    btc_bias_line = f"BTC bias: {btc_bias}\n" if btc_bias else ""
+
+    header_block = (
+        f"{title}\n\n"
+        f"{score_line}\n"
+        f"ยืนยัน: {confirmed_timeframes}\n"
+        f"กลยุทธ์: {strategy}\n"
+        f"สภาวะตลาด: {regime_th}\n"
+        f"{btc_bias_line}\n"
+        f"ราคาปัจจุบัน: {_fmt_price_val(price)}\n"
+        f"โซนเข้าซื้อ: {_fmt_zone_val(entry_low, entry_high)}\n"
+        f"Stop Loss: {_fmt_price_val(stop_loss)}\n"
+        f"TP1: {_fmt_price_val(tp1)}\n"
+        f"TP2: {_fmt_price_val(tp2)}"
+    )
+
+    sizing_lines = []
+    if risk_reward:
+        sizing_lines.append(f"Risk/Reward: {risk_reward}")
+    if suggested_allocation is not None:
+        sizing_lines.append(f"เงินที่แนะนำ: {suggested_allocation:,.0f} THB")
+    if risk_amount is not None:
+        sizing_lines.append(f"ความเสี่ยงโดยประมาณ: {risk_amount:,.0f} THB")
+
+    sizing_block = ("\n\n" + "\n".join(sizing_lines)) if sizing_lines else ""
+
+    if ai_section:
+        ai_block = ai_section
+    elif ai_opinion:
+        status = ai_opinion.get("status", "connected")
+        is_unavail = (
+            status in {"timeout", "error", "unavailable"}
+            or "AI analysis unavailable" in str(ai_opinion.get("assessment", ""))
+        )
+        if is_unavail:
+            ai_block = "🤖 ความเห็นที่ 2 จาก DeepSeek:\nAI analysis unavailable"
+        else:
+            conf = ai_opinion.get("confidence", 0.0)
+            if isinstance(conf, (int, float)):
+                conf_str = f"{int(round(conf * 100))}%" if is_test else f"{conf:.2f} ({int(round(conf * 100))}%)"
+            elif isinstance(conf, str):
+                conf_str = conf if "%" in conf else f"{conf}%"
+            else:
+                conf_str = "80%"
+
+            ai_block = (
+                f"🤖 ความเห็นที่ 2 จาก DeepSeek\n"
+                f"ความมั่นใจ: {conf_str}\n\n"
+                f"ภาพรวม:\n{ai_opinion.get('assessment', 'N/A')}\n\n"
+                f"มุมบวก:\n{format_bullets(ai_opinion.get('bull_case', 'N/A'))}\n\n"
+                f"มุมลบ:\n{format_bullets(ai_opinion.get('bear_case', 'N/A'))}\n\n"
+                f"ความเสี่ยงสำคัญ:\n{format_bullets(ai_opinion.get('key_risks', 'N/A'))}\n\n"
+                f"สิ่งที่ควรจับตา:\n{format_bullets(ai_opinion.get('watch_next', 'N/A'))}\n\n"
+                f"สรุป:\n{ai_opinion.get('summary', 'N/A')}"
+            )
+    else:
+        ai_block = "🤖 ความเห็นที่ 2 จาก DeepSeek:\nAI analysis unavailable"
+
+    if is_test:
+        footer = (
+            "⚠️ ระบบไม่ได้ส่งคำสั่งซื้ออัตโนมัติ\n"
+            "กรุณาตรวจสอบราคาและดำเนินการบน Bitkub ด้วยตนเอง"
+        )
+    else:
+        footer = (
+            "⚠️ ระบบไม่ได้ส่งคำสั่งซื้ออัตโนมัติ — ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการบน Bitkub ด้วยตนเอง"
+        )
+
+    return f"{header_block}{sizing_block}\n\n{ai_block}\n\n{footer}"
+
+
+def format_sell_alert(
+    pair: str,
+    mode: str,
+    actual_entry_price: float,
+    current_price: float,
+    quantity: float,
+    asset: str,
+    gross_pnl_thb: float,
+    gross_pnl_pct: float,
+    reason: str,
+    stop_loss: float,
+    trailing_stop: float,
+    tp1: float,
+    tp2: float,
+    ai_opinion: dict | None = None,
+    ai_section: str | None = None,
+    is_test: bool = False,
+    now_str: str | None = None,
+) -> str:
+    prefix = "🧪 TEST ALERT — ไม่ใช่สัญญาณจริง\n\n" if is_test else ""
+    title = f"{prefix}🚨 ขายตอนนี้ · {pair}" + ("" if is_test else " (SELL_NOW)")
+
+    def _fmt_dec(val: float, decimals: int = 4) -> str:
+        return f"{val:,.{decimals}f}"
+
+    qty_str = f"{quantity:,.2f}" if (is_test and quantity == round(quantity, 2)) else f"{quantity:,.4f}"
+    pnl_label = "กำไร/ขาดทุนตามราคาตลาด" if is_test else "กำไร/ขาดทุนโดยประมาณ (ตามราคาตลาด)"
+
+    if ai_section:
+        ai_block = ai_section
+    elif ai_opinion:
+        status = ai_opinion.get("status", "connected")
+        is_unavail = (
+            status in {"timeout", "error", "unavailable"}
+            or "AI analysis unavailable" in str(ai_opinion.get("assessment", ""))
+            or "AI analysis unavailable" in str(ai_opinion.get("why_exit_now", ""))
+        )
+        if is_unavail:
+            ai_block = "🤖 ความเห็นที่ 2 จาก DeepSeek:\nAI analysis unavailable"
+        else:
+            conf = ai_opinion.get("confidence", 0.0)
+            if isinstance(conf, (int, float)):
+                conf_str = f"{int(round(conf * 100))}%" if is_test else f"{conf:.2f} ({int(round(conf * 100))}%)"
+            elif isinstance(conf, str):
+                conf_str = conf if "%" in conf else f"{conf}%"
+            else:
+                conf_str = "88%"
+
+            assessment_val = ai_opinion.get("assessment")
+            assessment_line = f"ภาพรวม:\n{assessment_val}\n\n" if assessment_val else ""
+
+            ai_block = (
+                f"🤖 ความเห็นที่ 2 จาก DeepSeek\n"
+                f"ความมั่นใจ: {conf_str}\n\n"
+                f"{assessment_line}"
+                f"ทำไมระบบแนะนำให้ออก:\n{ai_opinion.get('why_exit_now', 'N/A')}\n\n"
+                f"ความเสี่ยงหากยังถือ:\n{ai_opinion.get('risk_of_holding', 'N/A')}\n\n"
+                f"มุมมองโต้แย้ง:\n{ai_opinion.get('counter_case', 'N/A')}\n\n"
+                f"ความเสี่ยงสำคัญ:\n{format_bullets(ai_opinion.get('key_risks', 'N/A'))}\n\n"
+                f"สรุป:\n{ai_opinion.get('summary', 'N/A')}"
+            )
+    else:
+        ai_block = "🤖 ความเห็นที่ 2 จาก DeepSeek:\nAI analysis unavailable"
+
+    if is_test:
+        footer = (
+            "⚠️ ยังไม่มีการขายจริง\n"
+            "กรุณาดำเนินการขายบน Bitkub แล้วกลับมาบันทึกราคาขายจริงในระบบ"
+        )
+    else:
+        footer = (
+            "⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการบน Bitkub ด้วยตนเอง"
+        )
+
+    thb_suffix = " THB" if is_test else ""
+    trailing_label = "Effective/Trailing Stop" if is_test else "Trailing Stop"
+
+    msg = (
+        f"{title}\n\n"
+        f"พอร์ต: {mode}\n"
+        f"ต้นทุนจริง: {_fmt_dec(actual_entry_price, 4)} THB\n"
+        f"ราคาปัจจุบัน: {_fmt_dec(current_price, 4)} THB\n"
+        f"จำนวน: {qty_str} {asset}\n\n"
+        f"{pnl_label}: {gross_pnl_thb:+,.2f} THB ({gross_pnl_pct:+.2f}%)\n"
+        f"เหตุผลจากระบบ: {reason}\n\n"
+        f"Stop Loss: {_fmt_dec(stop_loss, 4)}{thb_suffix}\n"
+        f"{trailing_label}: {_fmt_dec(trailing_stop, 4)}{thb_suffix}\n"
+        f"TP1: {_fmt_dec(tp1, 4)}{thb_suffix}\n"
+        f"TP2: {_fmt_dec(tp2, 4)}{thb_suffix}\n\n"
+        f"{ai_block}\n\n"
+        f"{footer}"
+    )
+    return msg
+
+
 class RealtimeMonitor:
     """Public market watcher only. It creates alerts and can never execute orders."""
 
@@ -462,34 +696,25 @@ class RealtimeMonitor:
                     "AI analysis unavailable"
                 )
             else:
-                conf = ai_opinion.get("confidence", 0.0)
-                conf_text = f"{conf:.2f} ({conf * 100:.0f}%)" if isinstance(conf, (int, float)) else str(conf)
-                risks = ai_opinion.get("key_risks", [])
-                risks_str = "\n".join(f"  • {r}" for r in risks) if isinstance(risks, list) else str(risks)
-                watch = ai_opinion.get("watch_next", [])
-                watch_str = "\n".join(f"  • {w}" for w in watch) if isinstance(watch, list) else str(watch)
+                ai_section = None
 
-                ai_section = (
-                    f"🤖 ความเห็นที่ 2 จาก DeepSeek:\n"
-                    f"• การประเมิน: {ai_opinion.get('assessment', 'N/A')} (ความมั่นใจ: {conf_text})\n"
-                    f"• ปัจจัยบวก (Bull Case): {ai_opinion.get('bull_case', 'N/A')}\n"
-                    f"• ปัจจัยเสี่ยง (Bear Case): {ai_opinion.get('bear_case', 'N/A')}\n"
-                    f"• ความเสี่ยงสำคัญ (Key Risks):\n{risks_str}\n"
-                    f"• สิ่งที่ต้องจับตาต่อไป (Watch Next):\n{watch_str}\n"
-                    f"• บทสรุป (Summary): {ai_opinion.get('summary', 'N/A')}"
-                )
-
-        msg = (
-            f"🚨 ซื้อได้ตอนนี้ (BUY_NOW) · {pair}\n\n"
-            f"ราคาปัจจุบัน: {price:,.4f} บาท\n"
-            f"โซนเข้า: {entry_low:,.4f} - {entry_high:,.4f} บาท\n"
-            f"Stop Loss: {stop_loss_val:,.4f} บาท\n"
-            f"TP1: {tp1_val:,.4f} บาท | TP2: {tp2_val:,.4f} บาท\n"
-            f"คะแนน: {score} (ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes)\n"
-            f"เหตุผล: ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes ราคาอยู่ในโซนเข้า\n"
-            f"เวลา: {now_bkk}\n\n"
-            f"{ai_section}\n\n"
-            f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการบน Bitkub ด้วยตนเอง"
+        msg = format_buy_alert(
+            pair=pair,
+            price=price,
+            entry_low=entry_low,
+            entry_high=entry_high,
+            reference=reference,
+            stop_loss=stop_loss_val,
+            tp1=tp1_val,
+            tp2=tp2_val,
+            score=score,
+            confirmed_timeframes=f"{len(buys)}/3 Timeframes",
+            strategy=strategy,
+            regime=market_regime,
+            ai_opinion=ai_opinion if (not in_ai_cooldown and not is_unavailable) else None,
+            ai_section=ai_section,
+            is_test=False,
+            now_str=now_bkk,
         )
         await self._alert("BUY_NOW", pair, msg)
 
@@ -629,38 +854,134 @@ class RealtimeMonitor:
                     "AI analysis unavailable"
                 )
             else:
-                conf = ai_opinion.get("confidence", 0.0)
-                conf_text = f"{conf:.2f} ({conf * 100:.0f}%)" if isinstance(conf, (int, float)) else str(conf)
-                risks = ai_opinion.get("key_risks", [])
-                risks_str = "\n".join(f"  • {r}" for r in risks) if isinstance(risks, list) else str(risks)
-                watch = ai_opinion.get("watch_next", [])
-                watch_str = "\n".join(f"  • {w}" for w in watch) if isinstance(watch, list) else str(watch)
+                ai_section = None
 
-                ai_section = (
-                    f"🤖 ความเห็นที่ 2 จาก DeepSeek:\n"
-                    f"• การประเมิน: {ai_opinion.get('assessment', 'N/A')} (ความมั่นใจ: {conf_text})\n"
-                    f"• เหตุผลที่ควรขายทันที (Why Exit Now): {ai_opinion.get('why_exit_now', 'N/A')}\n"
-                    f"• ความเสี่ยงหากยังถือต่อ (Risk of Holding): {ai_opinion.get('risk_of_holding', 'N/A')}\n"
-                    f"• มุมมองโต้แย้ง (Counter Case): {ai_opinion.get('counter_case', 'N/A')}\n"
-                    f"• ความเสี่ยงสำคัญ (Key Risks):\n{risks_str}\n"
-                    f"• สิ่งที่ต้องจับตาต่อไป (Watch Next):\n{watch_str}\n"
-                    f"• บทสรุป (Summary): {ai_opinion.get('summary', 'N/A')}"
-                )
-
-        msg = (
-            f"🚨 ขายตอนนี้ (SELL_NOW) · {pair}\n\n"
-            f"พอร์ต: {plan['mode']}\n"
-            f"ต้นทุนจริง: {actual_entry_price:,.4f} บาท | จำนวน: {quantity:,.4f} {asset}\n"
-            f"ราคาปัจจุบัน: {price:,.4f} บาท\n"
-            f"กำไร/ขาดทุนโดยประมาณ: {gross_pnl_thb:+,.2f} บาท ({gross_pnl_pct:+.2f}%)\n"
-            f"เหตุผลทางเทคนิค (Deterministic): {reason}\n"
-            f"จุดตัดขาดทุน (Stop Loss): {plan['stop_loss']:,.4f} บาท (Effective Stop: {effective_stop:,.4f} บาท)\n"
-            f"เป้าหมายกำไร: TP1 {plan['take_profit_1']:,.4f} บาท | TP2 {plan['take_profit_2']:,.4f} บาท\n"
-            f"เวลา: {now_bkk}\n\n"
-            f"{ai_section}\n\n"
-            f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการบน Bitkub ด้วยตนเอง"
+        msg = format_sell_alert(
+            pair=pair,
+            mode=plan["mode"],
+            actual_entry_price=actual_entry_price,
+            current_price=price,
+            quantity=quantity,
+            asset=asset,
+            gross_pnl_thb=gross_pnl_thb,
+            gross_pnl_pct=gross_pnl_pct,
+            reason=reason,
+            stop_loss=float(plan.get("stop_loss", 0.0)),
+            trailing_stop=float(effective_stop),
+            tp1=float(plan.get("take_profit_1", 0.0)),
+            tp2=float(plan.get("take_profit_2", 0.0)),
+            ai_opinion=ai_opinion if (not in_cooldown and not is_unavailable) else None,
+            ai_section=ai_section,
+            is_test=False,
+            now_str=now_bkk,
         )
         await self._alert("SELL_NOW", pair, msg, force_state_change=force_state_change)
+
+    async def send_test_buy_alert(self) -> str:
+        """Send simulated high-conviction BUY alert to Telegram without mutating portfolio/trading state."""
+        if not self.telegram_send:
+            raise ValueError("ยังไม่ได้กำหนดค่า Telegram Bot Token หรือ Chat ID ในระบบ")
+
+        sim_ai_opinion = {
+            "status": "connected",
+            "assessment": "โครงสร้างโดยรวมเป็นบวกและทั้ง 3 Timeframes สนับสนุนทิศทางเดียวกัน แต่ราคากำลังเข้าใกล้แนวต้านระยะสั้น",
+            "confidence": "82%",
+            "bull_case": [
+                "EMA 9/20/50 เรียงตัวเชิงบวก",
+                "Volume เพิ่มขึ้นพร้อมราคา",
+                "15m, 1h และ 4h ยืนยันตรงกัน",
+            ],
+            "bear_case": [
+                "ราคาใกล้แนวต้าน",
+                "หาก Volume ลดลง breakout อาจล้มเหลว",
+            ],
+            "key_risks": [
+                "BTC อ่อนแรงกะทันหัน",
+                "Failed breakout",
+                "Slippage ตอนเข้าซื้อ",
+            ],
+            "watch_next": [
+                "การยืนเหนือ entry zone",
+                "Relative Volume หลัง breakout",
+                "RSI divergence",
+            ],
+            "summary": "สัญญาณมีคุณภาพสูงตามระบบ แต่ควรรอ execution ที่อยู่ในโซนและรักษา Stop Loss ตามแผน",
+        }
+
+        msg = format_buy_alert(
+            pair="ETH/THB",
+            price=82_100.0,
+            entry_low=81_900.0,
+            entry_high=82_150.0,
+            reference=82_000.0,
+            stop_loss=80_950.0,
+            tp1=84_200.0,
+            tp2=85_500.0,
+            score=86,
+            confirmed_timeframes="3/3",
+            strategy="EMA Pullback",
+            regime="TRENDING_UP",
+            btc_bias="POSITIVE",
+            ai_opinion=sim_ai_opinion,
+            risk_reward="1:2.1",
+            suggested_allocation=5_000.0,
+            risk_amount=190.0,
+            is_test=True,
+        )
+
+        ok = await self.telegram_send(msg)
+        if ok is False:
+            raise RuntimeError("Telegram API ปฏิเสธการส่งข้อความหรือเกิดข้อผิดพลาดในการเชื่อมต่อ")
+        return msg
+
+    async def send_test_sell_alert(self) -> str:
+        """Send simulated DOGE SELL alert to Telegram without mutating portfolio/trading state."""
+        if not self.telegram_send:
+            raise ValueError("ยังไม่ได้กำหนดค่า Telegram Bot Token หรือ Chat ID ในระบบ")
+
+        qty = 1676.44
+        entry = 2.98
+        current = 2.92
+        gross_pnl_thb = qty * (current - entry)
+        gross_pnl_pct = ((current - entry) / entry) * 100.0
+
+        sim_ai_opinion = {
+            "status": "connected",
+            "assessment": "โครงสร้างระยะสั้นอ่อนตัวลงและสัญญาณออกจากระบบถูกกระตุ้นแล้ว",
+            "confidence": "88%",
+            "why_exit_now": "แนวโน้ม 15m และ 1h เสียโครงสร้างพร้อมราคาหลุดระดับป้องกัน",
+            "risk_of_holding": "มีความเสี่ยงที่การขาดทุนจะขยายตัวหากแรงขายต่อเนื่อง",
+            "counter_case": "ราคาอาจเกิด technical rebound หลังหลุดแนวรับ แต่ยังไม่มี confirmation ว่ากลับตัว",
+            "key_risks": [
+                "Momentum ยังอ่อน",
+                "Support เดิมกลายเป็น resistance",
+                "ตลาด Altcoin อ่อนตาม BTC",
+            ],
+            "summary": "ระบบมีเหตุผลเพียงพอในการแนะนำให้ออกจากสถานะ แต่การขายจริงยังต้องดำเนินการด้วยตนเองบน Bitkub",
+        }
+
+        msg = format_sell_alert(
+            pair="DOGE/THB",
+            mode="MANUAL_REAL",
+            actual_entry_price=entry,
+            current_price=current,
+            quantity=qty,
+            asset="DOGE",
+            gross_pnl_thb=gross_pnl_thb,
+            gross_pnl_pct=gross_pnl_pct,
+            reason="TREND_INVALIDATION",
+            stop_loss=2.9320,
+            trailing_stop=2.9450,
+            tp1=3.0520,
+            tp2=3.1000,
+            ai_opinion=sim_ai_opinion,
+            is_test=True,
+        )
+
+        ok = await self.telegram_send(msg)
+        if ok is False:
+            raise RuntimeError("Telegram API ปฏิเสธการส่งข้อความหรือเกิดข้อผิดพลาดในการเชื่อมต่อ")
+        return msg
 
     async def _alert(self, kind: str, pair: str, message: str, force_state_change: bool = False):
         key, current = f"{kind}:{pair}", time.monotonic()

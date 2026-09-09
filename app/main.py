@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
@@ -29,6 +30,7 @@ deepseek = DeepSeekSecondOpinion(settings.deep_seek_api_key)
 telegram = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
 realtime = RealtimeMonitor(db, telegram.send if telegram.configured else None, deepseek=deepseek)
 scheduler = AsyncIOScheduler()
+logger = logging.getLogger(__name__)
 
 
 async def lifecycle_notification(kind: str, message: str):
@@ -395,3 +397,40 @@ async def ask_position_opinion(request: AskDeepSeekRequest):
         "analyzed_at": analyzed_at,
         "disclaimer": "ความคิดเห็นที่ 2 สำหรับประกอบการตัดสินใจเท่านั้น ไม่มีการส่งคำสั่งเทรดอัตโนมัติ",
     }
+
+
+@app.post("/api/test-alert/buy")
+async def send_test_buy_alert_endpoint():
+    if not telegram.configured or not realtime.telegram_send:
+        raise HTTPException(
+            status_code=400,
+            detail="ยังไม่ได้กำหนดค่า Telegram Bot Token หรือ Chat ID ในระบบ",
+        )
+    try:
+        preview = await realtime.send_test_buy_alert()
+        return {"status": "ok", "message": "ส่งข้อความทดสอบสำเร็จ", "preview": preview}
+    except Exception as exc:
+        err_msg = str(exc)
+        if telegram.token and telegram.token in err_msg:
+            err_msg = err_msg.replace(telegram.token, "[REDACTED]")
+        logger.warning(f"Test BUY alert delivery failed: {err_msg}")
+        raise HTTPException(status_code=500, detail=f"ส่งไม่สำเร็จ: {err_msg}")
+
+
+@app.post("/api/test-alert/sell")
+async def send_test_sell_alert_endpoint():
+    if not telegram.configured or not realtime.telegram_send:
+        raise HTTPException(
+            status_code=400,
+            detail="ยังไม่ได้กำหนดค่า Telegram Bot Token หรือ Chat ID ในระบบ",
+        )
+    try:
+        preview = await realtime.send_test_sell_alert()
+        return {"status": "ok", "message": "ส่งข้อความทดสอบสำเร็จ", "preview": preview}
+    except Exception as exc:
+        err_msg = str(exc)
+        if telegram.token and telegram.token in err_msg:
+            err_msg = err_msg.replace(telegram.token, "[REDACTED]")
+        logger.warning(f"Test SELL alert delivery failed: {err_msg}")
+        raise HTTPException(status_code=500, detail=f"ส่งไม่สำเร็จ: {err_msg}")
+
