@@ -10,6 +10,7 @@ services:
       DATABASE_PATH: /data/crypto_assistance.db
     volumes:
       - crypto_data:/data
+      - ./app:/app/app
     restart: unless-stopped
 
 volumes:
