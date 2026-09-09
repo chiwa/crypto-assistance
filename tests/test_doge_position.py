@@ -45,11 +45,13 @@ def test_doge_unrealized_pnl_updates_from_market_price(tmp_path):
     expected_mval = 1676.44 * 3.10
     assert pos["market_value"] == pytest.approx(expected_mval, rel=1e-4)
 
-    # Unrealized P/L = quantity * (3.10 - 2.98) - estimated exit fee (0.25%)
+    # Gross Unrealized P/L = quantity * (3.10 - 2.98), estimated exit fee (0.25%) is separated
     gross_gain = 1676.44 * (3.10 - 2.98)
     exit_fee = expected_mval * 0.0025
-    expected_unreal = gross_gain - exit_fee
-    assert pos["unrealized_pnl"] == pytest.approx(expected_unreal, rel=1e-3)
+    assert pos["unrealized_pnl"] == pytest.approx(gross_gain, rel=1e-3)
+    assert pos["gross_unrealized_pnl"] == pytest.approx(gross_gain, rel=1e-3)
+    assert pos["estimated_exit_fee"] == pytest.approx(exit_fee, rel=1e-3)
+    assert pos["net_unrealized_pnl"] == pytest.approx(gross_gain - exit_fee, rel=1e-3)
 
 
 def test_doge_real_position_not_closed_by_signals(tmp_path):

@@ -71,7 +71,7 @@ async def lifespan(_: FastAPI):
     if scheduler.running:
         scheduler.shutdown(wait=False)
     scheduler = AsyncIOScheduler()
-    db.initialize(seed_doge_position=True)
+    db.initialize()
     # Take initial daily snapshot if needed
     take_daily_snapshots()
     schedule_scanner()

@@ -145,5 +145,59 @@ class PositionExitEngine:
         return "HOLD", "setup remains valid", round(effective, 4)
 
 
+def build_exit_plan_from_market(
+    pair: str,
+    entry_price: float,
+    current_price: float,
+    signals: list[dict],
+    strategy: str = "Manual Real Execution",
+    entry_score: int | None = None,
+    entry_reason: str = "การซื้อจริงบน Bitkub",
+    trailing_activation_percent: float = 2.0,
+    trailing_distance_percent: float = 1.0,
+) -> dict:
+    """Builds an exit plan dynamically from deterministic market context (ATR & structure).
+    The actual entry_price is strictly preserved.
+    """
+    atr_vals = [
+        s["details"]["atr"]
+        for s in signals
+        if "details" in s and isinstance(s["details"], dict) and s["details"].get("atr", 0) > 0
+    ]
+    if atr_vals:
+        atr_val = fmean(atr_vals)
+        risk = max(atr_val * 1.5, entry_price * 0.015)
+        stop_loss = round(entry_price - risk, 4)
+        tp1 = round(entry_price + risk * 1.5, 4)
+        tp2 = round(entry_price + risk * 2.5, 4)
+        plan_type = "MARKET_DERIVED"
+    else:
+        # Percentage fallback plan
+        stop_loss = round(entry_price * 0.98, 4)  # -2%
+        tp1 = round(entry_price * 1.03, 4)        # +3%
+        tp2 = round(entry_price * 1.05, 4)        # +5%
+        plan_type = "FALLBACK_MANUAL"
+
+    return {
+        "asset": pair.split("/")[0].upper(),
+        "entry_price": float(entry_price),
+        "strategy": strategy,
+        "entry_score": entry_score,
+        "entry_reason": entry_reason or f"บันทึกการเข้าซื้อ @ {entry_price:,.2f} THB",
+        "stop_loss": stop_loss,
+        "effective_stop": stop_loss,
+        "take_profit_1": tp1,
+        "take_profit_2": tp2,
+        "highest_price": max(float(entry_price), float(current_price)),
+        "trailing_enabled": 1,
+        "trailing_activation_percent": trailing_activation_percent,
+        "trailing_distance_percent": trailing_distance_percent,
+        "current_action": "HOLD",
+        "action_reason": "ถือต่อ - กำลังเฝ้าระวังตำแหน่งจริง",
+        "plan_type": plan_type,
+    }
+
+
 def candidate_dict(candidate: Candidate) -> dict:
     return asdict(candidate)
+

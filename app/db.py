@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS position_plans (
     entry_time TEXT NOT NULL,
     entry_price REAL NOT NULL,
     strategy TEXT NOT NULL,
-    entry_score INTEGER NOT NULL,
+    entry_score INTEGER,
     entry_reason TEXT NOT NULL,
     stop_loss REAL NOT NULL,
     effective_stop REAL NOT NULL,
@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS position_plans (
     trailing_distance_percent REAL NOT NULL DEFAULT 1.0,
     current_action TEXT NOT NULL DEFAULT 'IN_POSITION',
     action_reason TEXT NOT NULL DEFAULT 'Position recorded',
+    plan_type TEXT NOT NULL DEFAULT 'MARKET_DERIVED',
     updated_at TEXT NOT NULL
 );
 
@@ -161,57 +162,181 @@ class Database:
     def initialize(self, seed_doge_position: bool = False):
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            self._ensure_position_plans_schema(conn)
             for key, value in DEFAULT_SETTINGS.items():
                 conn.execute(
                     "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
                     (key, json.dumps(value)),
                 )
-            if seed_doge_position:
-                self._seed_doge_data(conn)
+            self.migrate_legacy_data(conn, force_seed=seed_doge_position)
 
-    def _seed_doge_data(self, conn):
-        doge_pos = conn.execute(
-            "SELECT * FROM positions WHERE mode='MANUAL_REAL' AND asset='DOGE'"
+    def _ensure_position_plans_schema(self, conn: sqlite3.Connection):
+        pragma = conn.execute("PRAGMA table_info(position_plans)").fetchall()
+        cols = {r["name"]: dict(r) for r in pragma}
+        needs_migration = False
+        if "plan_type" not in cols:
+            needs_migration = True
+        elif cols.get("entry_score", {}).get("notnull", 0) == 1:
+            needs_migration = True
+
+        if needs_migration:
+            conn.execute("ALTER TABLE position_plans RENAME TO position_plans_old")
+            conn.execute("""
+                CREATE TABLE position_plans (
+                    mode TEXT PRIMARY KEY,
+                    asset TEXT NOT NULL,
+                    entry_time TEXT NOT NULL,
+                    entry_price REAL NOT NULL,
+                    strategy TEXT NOT NULL,
+                    entry_score INTEGER,
+                    entry_reason TEXT NOT NULL,
+                    stop_loss REAL NOT NULL,
+                    effective_stop REAL NOT NULL,
+                    take_profit_1 REAL NOT NULL,
+                    take_profit_2 REAL NOT NULL,
+                    highest_price REAL NOT NULL,
+                    trailing_enabled INTEGER NOT NULL DEFAULT 1,
+                    trailing_activation_percent REAL NOT NULL DEFAULT 2.0,
+                    trailing_distance_percent REAL NOT NULL DEFAULT 1.0,
+                    current_action TEXT NOT NULL DEFAULT 'IN_POSITION',
+                    action_reason TEXT NOT NULL DEFAULT 'Position recorded',
+                    plan_type TEXT NOT NULL DEFAULT 'MARKET_DERIVED',
+                    updated_at TEXT NOT NULL
+                );
+            """)
+            has_old_plan_type = "plan_type" in cols
+            plan_expr = "COALESCE(plan_type, 'MARKET_DERIVED')" if has_old_plan_type else "'MARKET_DERIVED'"
+            conn.execute(f"""
+                INSERT INTO position_plans (
+                    mode, asset, entry_time, entry_price, strategy, entry_score, entry_reason,
+                    stop_loss, effective_stop, take_profit_1, take_profit_2, highest_price,
+                    trailing_enabled, trailing_activation_percent, trailing_distance_percent,
+                    current_action, action_reason, plan_type, updated_at
+                )
+                SELECT
+                    mode, asset, entry_time, entry_price, strategy,
+                    CASE WHEN entry_score = 0 THEN NULL ELSE entry_score END,
+                    entry_reason, stop_loss, effective_stop, take_profit_1, take_profit_2, highest_price,
+                    trailing_enabled, trailing_activation_percent, trailing_distance_percent,
+                    current_action, action_reason, {plan_expr}, updated_at
+                FROM position_plans_old
+            """)
+            conn.execute("DROP TABLE position_plans_old")
+
+    def migrate_legacy_data(self, conn: sqlite3.Connection, force_seed: bool = False):
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key='legacy_migration_v2'"
         ).fetchone()
-        if not doge_pos:
-            # 1. Seed initial capital deposit 10,000 THB
-            conn.execute(
-                """INSERT OR IGNORE INTO ledger(created_at, mode, type, amount_thb, note)
-                   VALUES ('2026-09-09T00:00:00+00:00', 'MANUAL_REAL', 'DEPOSIT', 10000.0, 'เงินทุนเริ่มต้น (Initial capital)')"""
+        if row and not force_seed:
+            return
+
+        from app.engines import build_exit_plan_from_market
+
+        # Check if legacy PAPER DOGE exists or force_seed is True
+        legacy_paper_pos = conn.execute(
+            "SELECT * FROM positions WHERE mode='PAPER' AND asset='DOGE'"
+        ).fetchone()
+        legacy_paper_plan = conn.execute(
+            "SELECT * FROM position_plans WHERE mode='PAPER' AND asset='DOGE'"
+        ).fetchone()
+        has_legacy_doge = bool(legacy_paper_pos or legacy_paper_plan or force_seed)
+
+        # 1. Clean up legacy PAPER data that erroneously held DOGE position
+        conn.execute("DELETE FROM positions WHERE mode='PAPER' AND asset='DOGE'")
+        conn.execute("DELETE FROM position_plans WHERE mode='PAPER' AND asset='DOGE'")
+        conn.execute("DELETE FROM ledger WHERE mode='PAPER' AND (pair='DOGE/THB' OR asset='DOGE' OR amount_thb=5000.0)")
+
+        if has_legacy_doge:
+            # 2. Check if MANUAL_REAL has an open DOGE position already
+            pos = conn.execute(
+                "SELECT * FROM positions WHERE mode='MANUAL_REAL' AND asset='DOGE'"
+            ).fetchone()
+
+            if not pos:
+                deposit = conn.execute(
+                    "SELECT id FROM ledger WHERE mode='MANUAL_REAL' AND type='DEPOSIT'"
+                ).fetchone()
+                if not deposit:
+                    conn.execute(
+                        """INSERT INTO ledger(created_at, mode, type, amount_thb, fee_thb, note)
+                           VALUES ('2026-09-09T00:00:00+00:00', 'MANUAL_REAL', 'DEPOSIT', 10000.0, 0.0, 'เงินทุนเริ่มต้น (Initial capital)')"""
+                    )
+
+                buy = conn.execute(
+                    "SELECT id FROM ledger WHERE mode='MANUAL_REAL' AND type='BUY' AND asset='DOGE'"
+                ).fetchone()
+                if not buy:
+                    conn.execute(
+                        """INSERT INTO ledger(created_at, mode, type, pair, asset, quantity, amount_thb, fee_thb, price_thb, reference, note)
+                           VALUES ('2026-09-09T00:00:00+00:00', 'MANUAL_REAL', 'BUY', 'DOGE/THB', 'DOGE', 1676.44, -4995.7912, 0.0, 2.98, 'UNKNOWN_FEE', 'ซื้อจริงบน Bitkub (Manual Real Execution) - ค่าธรรมเนียมไม่ระบุ')"""
+                    )
+
+                conn.execute(
+                    """INSERT OR REPLACE INTO positions(mode, asset, quantity, average_cost, realized_pnl, updated_at)
+                       VALUES ('MANUAL_REAL', 'DOGE', 1676.44, 2.98, 0.0, '2026-09-09T00:00:00+00:00')"""
+                )
+            else:
+                if abs(float(pos["average_cost"]) - 2.98) > 0.0001 and float(pos["quantity"]) == 1676.44:
+                    conn.execute(
+                        "UPDATE positions SET average_cost=2.98 WHERE mode='MANUAL_REAL' AND asset='DOGE'"
+                    )
+
+            # 3. Dynamic exit plan derived from market context
+            signals = self._signals_for_pair(conn, "DOGE/THB")
+            price_row = conn.execute("SELECT price FROM prices WHERE pair='DOGE/THB'").fetchone()
+            m_price = float(price_row["price"]) if price_row else 2.984
+
+            plan_data = build_exit_plan_from_market(
+                pair="DOGE/THB",
+                entry_price=2.98,
+                current_price=m_price,
+                signals=signals,
+                strategy="Manual Real Execution",
+                entry_score=None,
+                entry_reason="การซื้อจริงบน Bitkub (ต้นทุน 2.98 บาท)",
             )
-            # 2. Seed DOGE buy transaction: 1676.44 @ 2.98 THB = 4995.7912 THB
-            conn.execute(
-                """INSERT OR IGNORE INTO ledger(created_at, mode, type, pair, asset, quantity, amount_thb, fee_thb, price_thb, note)
-                   VALUES ('2026-09-09T00:00:00+00:00', 'MANUAL_REAL', 'BUY', 'DOGE/THB', 'DOGE', 1676.44, -4995.7912, 0.0, 2.98, 'ซื้อจริงบน Bitkub (Manual Real Execution)')"""
-            )
-            # 3. Seed DOGE position
-            conn.execute(
-                """INSERT OR REPLACE INTO positions(mode, asset, quantity, average_cost, realized_pnl, updated_at)
-                   VALUES ('MANUAL_REAL', 'DOGE', 1676.44, 2.98, 0.0, '2026-09-09T00:00:00+00:00')"""
-            )
-            # 4. Seed DOGE position plan
+
             conn.execute(
                 """INSERT OR REPLACE INTO position_plans(
                        mode, asset, entry_time, entry_price, strategy, entry_score, entry_reason,
                        stop_loss, effective_stop, take_profit_1, take_profit_2, highest_price,
                        trailing_enabled, trailing_activation_percent, trailing_distance_percent,
-                       current_action, action_reason, updated_at
+                       current_action, action_reason, plan_type, updated_at
                    ) VALUES (
-                       'MANUAL_REAL', 'DOGE', '2026-09-09T00:00:00+00:00', 2.98, 'Breakout', 75,
-                       'การซื้อจริงบน Bitkub (ต้นทุน 2.98 บาท)',
-                       2.8906, 2.8906, 3.0992, 3.2184, 2.98,
-                       1, 2.0, 1.0, 'HOLD', 'ถือต่อ - กำลังเฝ้าระวังตำแหน่งจริง', '2026-09-09T00:00:00+00:00'
-                   )"""
+                       'MANUAL_REAL', 'DOGE', '2026-09-09T00:00:00+00:00', 2.98, ?, ?, ?,
+                       ?, ?, ?, ?, ?, ?, ?, ?, 'HOLD', ?, ?, '2026-09-09T00:00:00+00:00'
+                   )""",
+                (
+                    plan_data["strategy"],
+                    plan_data["entry_score"],
+                    plan_data["entry_reason"],
+                    plan_data["stop_loss"],
+                    plan_data["effective_stop"],
+                    plan_data["take_profit_1"],
+                    plan_data["take_profit_2"],
+                    plan_data["highest_price"],
+                    plan_data["trailing_enabled"],
+                    plan_data["trailing_activation_percent"],
+                    plan_data["trailing_distance_percent"],
+                    plan_data["action_reason"],
+                    plan_data["plan_type"],
+                ),
             )
-            # 5. Set initial DOGE price
+
             conn.execute(
                 """INSERT OR IGNORE INTO prices(pair, price, updated_at)
-                   VALUES ('DOGE/THB', 2.98, '2026-09-09T00:00:00+00:00')"""
+                   VALUES ('DOGE/THB', 2.984, '2026-09-09T00:00:00+00:00')"""
             )
+
+        # Mark migration done
+        conn.execute(
+            "INSERT OR REPLACE INTO settings(key, value) VALUES ('legacy_migration_v2', ?)",
+            (json.dumps("done"),),
+        )
 
     def seed_doge_position(self):
         with self.connect() as conn:
-            self._seed_doge_data(conn)
+            self.migrate_legacy_data(conn, force_seed=True)
 
     def settings(self) -> dict:
         with self.connect() as conn:
@@ -342,7 +467,7 @@ class Database:
                     )
 
                 new_qty = quantity
-                new_avg = (gross + fee) / new_qty
+                new_avg = price if fee == 0.0 else (gross + fee) / new_qty
                 cash_delta = -required
 
             else:  # SELL
@@ -374,21 +499,52 @@ class Database:
             # Manage Position Plan
             if side == "BUY":
                 signals = self._signals_for_pair(conn, pair)
-                from app.engines import EntryEngine
-                candidate = EntryEngine().rank(pair, signals, price)
+                from app.engines import EntryEngine, build_exit_plan_from_market
+                if norm_mode == "MANUAL_REAL":
+                    plan_data = build_exit_plan_from_market(
+                        pair=pair,
+                        entry_price=price,
+                        current_price=price,
+                        signals=signals,
+                        strategy="Manual Real Execution",
+                        entry_score=None,
+                        entry_reason=note or f"บันทึกการเข้าซื้อจริง @ {price:,.2f} THB",
+                    )
+                else:
+                    candidate = EntryEngine().rank(pair, signals, price)
+                    plan_data = {
+                        "strategy": candidate.strategy,
+                        "entry_score": candidate.score,
+                        "entry_reason": candidate.reason,
+                        "stop_loss": candidate.stop_loss,
+                        "effective_stop": candidate.stop_loss,
+                        "take_profit_1": candidate.take_profit_1,
+                        "take_profit_2": candidate.take_profit_2,
+                        "highest_price": price,
+                        "trailing_enabled": 1,
+                        "trailing_activation_percent": 2.0,
+                        "trailing_distance_percent": 1.0,
+                        "current_action": "HOLD",
+                        "action_reason": f"บันทึกการเข้าซื้อจำลอง @ {price:,.2f} THB",
+                        "plan_type": "MARKET_DERIVED",
+                    }
+
                 conn.execute(
                     """INSERT OR REPLACE INTO position_plans(
                            mode, asset, entry_time, entry_price, strategy, entry_score, entry_reason,
                            stop_loss, effective_stop, take_profit_1, take_profit_2, highest_price,
                            trailing_enabled, trailing_activation_percent, trailing_distance_percent,
-                           current_action, action_reason, updated_at
-                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 2.0, 1.0, 'HOLD', ?, ?)""",
+                           current_action, action_reason, plan_type, updated_at
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         norm_mode, asset, execution_time, price,
-                        candidate.strategy, candidate.score, candidate.reason,
-                        candidate.stop_loss, candidate.stop_loss,
-                        candidate.take_profit_1, candidate.take_profit_2,
-                        price, f"บันทึกการเข้าซื้อจริง @ {price:,.2f} THB", now()
+                        plan_data["strategy"], plan_data["entry_score"], plan_data["entry_reason"],
+                        plan_data["stop_loss"], plan_data["effective_stop"],
+                        plan_data["take_profit_1"], plan_data["take_profit_2"],
+                        plan_data["highest_price"], plan_data["trailing_enabled"],
+                        plan_data["trailing_activation_percent"], plan_data["trailing_distance_percent"],
+                        plan_data["current_action"], plan_data["action_reason"],
+                        plan_data["plan_type"], now()
                     ),
                 )
             elif side == "SELL" and new_qty == 0:
@@ -450,19 +606,23 @@ class Database:
             cost = float(pos_dict["average_cost"])
             m_val = qty * m_price
             est_fee = m_val * (exit_fee_percent / 100.0)
-            unreal = (qty * (m_price - cost)) - est_fee
-            unreal_pct = ((m_price - cost) / cost * 100.0) if cost > 0 else 0.0
+            gross_unreal = qty * (m_price - cost)
+            gross_unreal_pct = ((m_price - cost) / cost * 100.0) if cost > 0 else 0.0
 
             pos_dict.update({
                 "market_value": round(m_val, 4),
+                "gross_unrealized_pnl": round(gross_unreal, 4),
+                "gross_unrealized_pnl_percent": round(gross_unreal_pct, 2),
                 "estimated_exit_fee": round(est_fee, 4),
-                "unrealized_pnl": round(unreal, 4),
-                "unrealized_pnl_percent": round(unreal_pct, 2),
+                "unrealized_pnl": round(gross_unreal, 4),
+                "unrealized_pnl_percent": round(gross_unreal_pct, 2),
+                "net_unrealized_pnl": round(gross_unreal - est_fee, 4),
             })
             positions.append(pos_dict)
 
         market_value = sum(p["market_value"] for p in positions)
-        unrealized = sum(p["unrealized_pnl"] for p in positions)
+        gross_unrealized = sum(p["gross_unrealized_pnl"] for p in positions)
+        total_estimated_exit_fee = sum(p["estimated_exit_fee"] for p in positions)
         equity = cash + market_value
         trading_pnl = equity - flow["net_capital_inflow"]
 
@@ -474,8 +634,11 @@ class Database:
             "market_value": round(market_value, 4),
             "equity": round(equity, 4),
             "realized_pnl": round(realized, 4),
-            "unrealized_pnl": round(unrealized, 4),
-            "total_pnl": round(realized + unrealized, 4),
+            "gross_unrealized_pnl": round(gross_unrealized, 4),
+            "unrealized_pnl": round(gross_unrealized, 4),
+            "estimated_exit_fee": round(total_estimated_exit_fee, 4),
+            "net_unrealized_pnl": round(gross_unrealized - total_estimated_exit_fee, 4),
+            "total_pnl": round(realized + gross_unrealized, 4),
             "trading_pnl": round(trading_pnl, 4),
             "has_open_position": len(positions) > 0,
             **flow,

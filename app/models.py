@@ -48,7 +48,7 @@ class PositionPlanModel(Base):
     entry_time = Column(String(64), nullable=False)
     entry_price = Column(Float, nullable=False)
     strategy = Column(String(64), nullable=False)
-    entry_score = Column(Integer, nullable=False)
+    entry_score = Column(Integer, nullable=True)
     entry_reason = Column(Text, nullable=False)
     stop_loss = Column(Float, nullable=False)
     effective_stop = Column(Float, nullable=False)
@@ -60,6 +60,7 @@ class PositionPlanModel(Base):
     trailing_distance_percent = Column(Float, nullable=False, default=1.0)
     current_action = Column(String(32), nullable=False, default="IN_POSITION")
     action_reason = Column(Text, nullable=False, default="Position recorded")
+    plan_type = Column(String(32), nullable=False, default="MARKET_DERIVED")
     updated_at = Column(String(64), nullable=False)
 
 

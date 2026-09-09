@@ -431,19 +431,26 @@ function renderPortfolios(d) {
 
 function renderPositionMonitor(d) {
   const realPort = d.real;
-  const pos = realPort.positions && realPort.positions[0];
-  const plan = realPort.position_plan;
+  const hasReal = (realPort.positions && realPort.positions.length > 0) || realPort.position_plan;
+  const targetPort = hasReal ? realPort : d.paper;
+  const isReal = targetPort === realPort;
+  const pos = targetPort.positions && targetPort.positions[0];
+  const plan = targetPort.position_plan;
 
   if (!pos && !plan) {
     $('#position-details').innerHTML = `
       <div style="color:var(--muted);padding:10px 0">
-        ไม่มีสถานะที่ถือครองในพอร์ตจริงขณะนี้ (สถานะว่าง พร้อมรับคำแนะนำ BUY_NOW)
+        ไม่มีสถานะที่ถือครองในพอร์ตขณะนี้ (สถานะว่าง พร้อมรับคำแนะนำ BUY_NOW)
       </div>`;
     $('#btn-ask-ai').style.display = 'none';
     return;
   }
 
   $('#btn-ask-ai').style.display = 'inline-block';
+  const modeBadge = isReal
+    ? '<span class="badge" style="background:#059669;color:#fff;font-weight:700">MANUAL_REAL (พอร์ตจริง)</span>'
+    : '<span class="badge" style="background:#3b82f6;color:#fff;font-weight:700">PAPER (พอร์ตจำลอง)</span>';
+
   const asset = pos ? pos.asset : plan.asset;
   const currentPrice = pos ? pos.market_price : plan.entry_price;
   const entryPrice = plan ? plan.entry_price : (pos ? pos.average_cost : 0);
@@ -452,37 +459,66 @@ function renderPositionMonitor(d) {
   const mVal = pos ? pos.market_value : 0;
   const unPnl = pos ? pos.unrealized_pnl : 0;
   const unPnlPct = pos ? pos.unrealized_pnl_percent : 0;
+  const estExitFee = pos ? pos.estimated_exit_fee : (mVal * 0.0025);
+  const netUnPnl = (pos && pos.net_unrealized_pnl !== undefined) ? pos.net_unrealized_pnl : (unPnl - estExitFee);
   const action = plan ? plan.current_action : 'HOLD';
   const reason = plan ? plan.action_reason : 'ถือต่อ';
+  const strategyDisplay = plan ? getThaiStrategy(plan.strategy) : 'N/A';
+  const scoreDisplay = (plan && plan.entry_score !== null && plan.entry_score !== undefined && plan.entry_score !== 0) ? `${plan.entry_score}/100` : 'N/A / ไม่มีข้อมูล';
+  const planTypeDisplay = plan ? getThaiPlanType(plan.plan_type) : 'N/A';
 
   $('#position-details').innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-      <div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span style="font-size:20px;font-weight:700">${asset}/THB</span>
-        <span class="action-badge action-${action}" style="margin-left:10px">${action} (${getThaiAction(action)})</span>
+        ${modeBadge}
+        <span class="action-badge action-${action}">${action} (${getThaiAction(action)})</span>
       </div>
       <div style="font-size:13px;color:var(--muted)">
-        ต้นทุนจริง: <b style="color:var(--ink)">${fmt(entryPrice, 4)} THB</b> · ราคาตลาดปัจจุบัน: <b style="color:var(--ink)">${fmt(currentPrice, 4)} THB</b>
+        ต้นทุนเข้าซื้อจริง: <b style="color:var(--ink)">${fmt(entryPrice, 4)} THB</b> · ราคาตลาดปัจจุบัน: <b style="color:var(--ink)">${fmt(currentPrice, 4)} THB</b>
       </div>
     </div>
     <div class="metric">
       <div><small>จำนวนที่ถือครอง</small><span>${fmt(qty, 4)} ${asset}</span></div>
-      <div><small>ต้นทุนรวมที่ซื้อจริง</small><span>${fmt(costVal, 2)} THB</span></div>
+      <div><small>ต้นทุนรวมที่ซื้อจริง (Gross Cost)</small><span>${fmt(costVal, 2)} THB</span></div>
       <div><small>มูลค่าตลาดปัจจุบัน</small><span>${fmt(mVal, 2)} THB</span></div>
       <div>
-        <small>กำไร/ขาดทุนปัจจุบัน</small>
-        <span class="${unPnl >= 0 ? 'pos-green' : 'pos-red'}">${fmt(unPnl, 2)} THB (${unPnlPct >= 0 ? '+' : ''}${fmt(unPnlPct, 2)}%)</span>
+        <small>กำไร/ขาดทุนตามราคาตลาด (Gross P/L)</small>
+        <span class="${unPnl >= 0 ? 'pos-green' : 'pos-red'}">${unPnl >= 0 ? '+' : ''}${fmt(unPnl, 4)} THB (${unPnlPct >= 0 ? '+' : ''}${fmt(unPnlPct, 2)}%)</span>
       </div>
     </div>
-    <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;font-size:13px;display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px">
+    <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;font-size:13px;display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;margin-top:10px">
       <div><b>จุดตัดขาดทุน (Stop Loss):</b> ${plan ? fmt(plan.stop_loss, 4) : 'N/A'} THB</div>
       <div><b>จุดตัดขาดทุนเลื่อน (Trailing Stop):</b> ${plan ? fmt(plan.effective_stop, 4) : 'N/A'} THB</div>
       <div><b>เป้าหมายทำกำไร 1 (TP1):</b> ${plan ? fmt(plan.take_profit_1, 4) : 'N/A'} THB</div>
       <div><b>เป้าหมายทำกำไร 2 (TP2):</b> ${plan ? fmt(plan.take_profit_2, 4) : 'N/A'} THB</div>
-      <div><b>กลยุทธ์ที่ใช้เข้า:</b> ${plan ? plan.strategy : 'N/A'}</div>
-      <div><b>คำแนะนำปัจจุบัน:</b> <span style="color:var(--accent)">${reason}</span></div>
+      <div><b>กลยุทธ์:</b> ${strategyDisplay}</div>
+      <div><b>คะแนนตอนเข้า (Entry Score):</b> ${scoreDisplay}</div>
+      <div><b>ประเภทแผน:</b> ${planTypeDisplay}</div>
+      <div><b>ค่าธรรมเนียมเข้า:</b> <span style="color:var(--muted)">ไม่ระบุ (Unknown)</span></div>
+      <div><b>ประมาณการค่าธรรมเนียมออก (0.25%):</b> <span style="color:var(--muted)">${fmt(estExitFee, 2)} THB (แยกแสดง)</span></div>
+      <div><b>กำไรสุทธิหลังหักประมาณการค่าธรรมเนียม:</b> <span class="${netUnPnl >= 0 ? 'pos-green' : 'pos-red'}">${netUnPnl >= 0 ? '+' : ''}${fmt(netUnPnl, 2)} THB</span></div>
+      <div style="grid-column:1/-1"><b>คำแนะนำปัจจุบัน:</b> <span style="color:var(--accent)">${reason}</span></div>
     </div>
   `;
+}
+
+function getThaiStrategy(s) {
+  const map = {
+    'EMA Pullback': 'EMA ย่อตัว (EMA Pullback)',
+    'Breakout': 'เบรกเอาต์ (Breakout)',
+    'Manual Real Execution': 'การซื้อจริงด้วยตนเอง (Manual Real Execution)',
+    'Manual Bitkub Execution': 'บันทึกการเทรดจริงบน Bitkub'
+  };
+  return map[s] || s;
+}
+
+function getThaiPlanType(pt) {
+  const map = {
+    'MARKET_DERIVED': 'คำนวณตามสภาวะตลาดจริง (Market ATR & Structure)',
+    'FALLBACK_MANUAL': 'แผนสำรองตามสัดส่วนร้อยละ (Fallback Plan: SL -2%, TP1 +3%, TP2 +5%)'
+  };
+  return map[pt] || pt || 'คำนวณตามสภาวะตลาดจริง';
 }
 
 function getThaiAction(a) {
