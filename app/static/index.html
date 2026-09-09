@@ -7,32 +7,61 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #070e17;
-      --card: #0f1924;
-      --card-hover: #142230;
-      --line: #1e3144;
-      --ink: #e8f1f7;
-      --muted: #8ca2b5;
-      --accent: #2ecc71;
-      --accent-glow: rgba(46, 204, 113, 0.2);
-      --warning: #f39c12;
-      --warning-glow: rgba(243, 156, 18, 0.2);
-      --bad: #e74c3c;
-      --bad-glow: rgba(231, 76, 60, 0.25);
-      --blue: #3498db;
-      --purple: #8e44ad;
-      --header-bg: #0b1522;
-      --nav-bg: #09121c;
+      /* Modern Deep Slate & Navy Surfaces */
+      --bg: #0a0f1d;
+      --card: #111a2e;
+      --card-hover: #15223c;
+      --card-inner: #0b1222;
+      --line: #1e2c47;
+      --line-subtle: rgba(255, 255, 255, 0.08);
+      --line-highlight: #2a3d66;
+
+      /* High-contrast crisp typography */
+      --ink: #f8fafc;
+      --ink-bright: #ffffff;
+      --muted: #94a3b8;
+      --subtext: #cbd5e1;
+
+      /* Vibrant energetic status accents */
+      --accent: #10b981;
+      --accent-bright: #34d399;
+      --accent-glow: rgba(16, 185, 129, 0.25);
+      --accent-bg: rgba(16, 185, 129, 0.14);
+
+      --warning: #f59e0b;
+      --warning-bright: #fbbf24;
+      --warning-glow: rgba(245, 158, 11, 0.25);
+      --warning-bg: rgba(245, 158, 11, 0.14);
+
+      --bad: #f43f5e;
+      --bad-bright: #fb7185;
+      --bad-glow: rgba(244, 63, 94, 0.25);
+      --bad-bg: rgba(244, 63, 94, 0.14);
+
+      --blue: #0ea5e9;
+      --blue-bright: #38bdf8;
+      --blue-glow: rgba(14, 165, 233, 0.25);
+      --blue-bg: rgba(14, 165, 233, 0.14);
+
+      --purple: #a855f7;
+      --purple-bright: #c084fc;
+      --purple-glow: rgba(168, 85, 247, 0.3);
+
+      --header-bg: rgba(10, 15, 29, 0.92);
+      --nav-bg: #091020;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      background: linear-gradient(145deg, #050b12, #0b1520);
+      background: radial-gradient(circle at 20% 12%, #142038 0%, #0a0f1d 55%, #060913 100%);
+      background-attachment: fixed;
       color: var(--ink);
-      font-family: -apple-system, BlinkMacSystemFont, "Sarabun", "Segoe UI", Roboto, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
+      font-family: -apple-system, BlinkMacSystemFont, "Sarabun", "Noto Sans Thai", "Segoe UI", Roboto, sans-serif;
+      font-size: 14.5px;
+      line-height: 1.6;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     
     /* App Sticky Header */
@@ -42,61 +71,65 @@
       z-index: 100;
       background: var(--header-bg);
       border-bottom: 1px solid var(--line);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
     }
 
     /* Top Header */
     .top-header {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 12px 0;
     }
     .header-inner {
       max-width: 1240px;
       margin: 0 auto;
-      padding: 0 16px;
+      padding: 0 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 14px;
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
     .brand h1 {
-      font-size: 18px;
+      font-size: 19px;
       margin: 0;
       font-weight: 800;
-      letter-spacing: -0.5px;
-      color: var(--ink);
+      letter-spacing: -0.3px;
+      color: #ffffff;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .brand-sub {
-      font-size: 11px;
-      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      color: #94a3b8;
     }
     .header-status {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       flex-wrap: wrap;
     }
 
     /* Navigation Bar */
     .nav-bar {
       background: var(--nav-bg);
-      padding: 6px 0;
+      padding: 8px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.03);
     }
     .nav-inner {
       max-width: 1240px;
       margin: 0 auto;
-      padding: 0 16px;
+      padding: 0 20px;
       display: flex;
-      gap: 6px;
+      gap: 8px;
       overflow-x: auto;
       white-space: nowrap;
       -webkit-overflow-scrolling: touch;
@@ -109,47 +142,50 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 16px;
-      color: var(--muted);
+      padding: 9px 18px;
+      color: #94a3b8;
       text-decoration: none;
       font-weight: 600;
-      font-size: 13px;
-      border-radius: 8px;
-      transition: all 0.15s ease;
+      font-size: 13.5px;
+      border-radius: 9px;
+      transition: all 0.2s ease;
       cursor: pointer;
-      border: 1px solid transparent;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      background: rgba(255, 255, 255, 0.02);
     }
     .nav-tab:hover {
-      color: var(--ink);
-      background: rgba(255, 255, 255, 0.04);
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.12);
     }
     .nav-tab.active {
-      color: #fff;
-      background: #142838;
-      border-color: var(--blue);
-      box-shadow: 0 2px 8px rgba(52, 152, 219, 0.2);
+      color: #ffffff;
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      border-color: #38bdf8;
+      box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4);
+      font-weight: 700;
     }
     .nav-tab .nav-icon {
-      font-size: 15px;
+      font-size: 16px;
     }
 
     /* Main Container */
     main {
       max-width: 1240px;
       margin: 0 auto;
-      padding: 20px 16px 60px 16px;
+      padding: 24px 20px 70px 20px;
     }
 
     /* Global Sticky Alert Banner */
     #global-critical-banner {
       display: none;
-      background: #2a0b10;
-      border: 1px solid #ff4d61;
-      border-left: 6px solid #ff4d61;
-      border-radius: 10px;
-      padding: 12px 18px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 16px var(--bad-glow);
+      background: linear-gradient(135deg, #380d15, #22080d);
+      border: 1px solid #f43f5e;
+      border-left: 6px solid #f43f5e;
+      border-radius: 12px;
+      padding: 14px 20px;
+      margin-bottom: 22px;
+      box-shadow: 0 6px 20px var(--bad-glow);
       animation: alertPulse 2.5s infinite;
     }
     @keyframes alertPulse {
@@ -161,26 +197,47 @@
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 14px;
     }
 
     /* Badges & Pills */
     .badge {
-      padding: 3px 10px;
-      background: #133324;
-      color: #4eed9f;
-      border-radius: 14px;
-      font-size: 11px;
-      font-weight: 600;
+      padding: 4px 12px;
+      background: rgba(16, 185, 129, 0.16);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 700;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
     }
-    .badge-real { background: #2c1a0e; color: #f39c12; }
-    .badge-gray { background: #1e293b; color: #94a3b8; }
-    .badge-red { background: #450a0a; color: #f87171; }
-    .badge-purple { background: #2c1a3a; color: #c39bd3; }
-    .badge-blue { background: #0c2d48; color: #38bdf8; }
+    .badge-real {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.45);
+    }
+    .badge-gray {
+      background: rgba(148, 163, 184, 0.16);
+      color: #cbd5e1;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+    .badge-red {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fb7185;
+      border: 1px solid rgba(244, 63, 94, 0.45);
+    }
+    .badge-purple {
+      background: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.45);
+    }
+    .badge-blue {
+      background: rgba(14, 165, 233, 0.2);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.45);
+    }
 
     /* Page Sections */
     .page-section {
@@ -199,23 +256,30 @@
     .card {
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 18px;
-      margin-bottom: 16px;
+      border-radius: 14px;
+      padding: 22px;
+      margin-bottom: 20px;
       position: relative;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .card:hover { border-color: #2b455e; }
+    .card:hover {
+      border-color: var(--line-highlight);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
     .card-title {
-      font-size: 16px;
-      margin: 0 0 14px 0;
-      color: #b8d0e2;
+      font-size: 16.5px;
+      font-weight: 700;
+      margin: 0 0 16px 0;
+      color: var(--ink-bright);
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 10px;
+      letter-spacing: -0.2px;
     }
-    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
     .span-3 { grid-column: span 3; }
     .span-4 { grid-column: span 4; }
     .span-6 { grid-column: span 6; }
@@ -225,163 +289,269 @@
     /* Metrics display */
     .metric-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 10px;
-      margin-bottom: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
     }
     .metric-box {
-      background: #071019;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #132230;
+      background: linear-gradient(145deg, #15223b, #0d1527);
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .metric-box:hover {
+      border-color: rgba(56, 189, 248, 0.35);
+      transform: translateY(-1px);
     }
     .metric-box small {
       display: block;
       color: var(--muted);
-      font-size: 11px;
-      margin-bottom: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      letter-spacing: 0.3px;
     }
     .metric-box span {
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-bright);
     }
-    .pos-green { color: var(--accent); }
-    .pos-red { color: var(--bad); }
+    .pos-green { color: #34d399 !important; text-shadow: 0 0 12px rgba(52, 211, 153, 0.3); }
+    .pos-red { color: #fb7185 !important; text-shadow: 0 0 12px rgba(251, 113, 133, 0.3); }
 
     /* Action Badges */
     .action-badge {
       display: inline-block;
-      padding: 4px 10px;
-      border-radius: 6px;
+      padding: 5px 12px;
+      border-radius: 8px;
       font-weight: 700;
-      font-size: 12px;
+      font-size: 12.5px;
       letter-spacing: 0.3px;
     }
-    .action-HOLD { background: #13271f; color: #2ecc71; border: 1px solid #2ecc71; }
-    .action-BUY_NOW { background: #10341e; color: #4eed9f; border: 1px solid #4eed9f; animation: pulse 2s infinite; }
-    .action-SELL_NOW, .action-STOP_LOSS { background: #3c1418; color: #ff6b7b; border: 1px solid #ff6b7b; }
-    .action-TAKE_PROFIT { background: #122b3b; color: #5dade2; border: 1px solid #5dade2; }
-    .action-EXIT_WATCH, .action-WATCH { background: #352611; color: #f39c12; border: 1px solid #f39c12; }
-    .action-WAIT { background: #15222d; color: #8ca2b5; }
+    .action-HOLD {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.5);
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.15);
+    }
+    .action-BUY_NOW {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid #10b981;
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.35);
+      animation: pulse 2s infinite;
+    }
+    .action-SELL_NOW, .action-STOP_LOSS {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fb7185;
+      border: 1px solid #f43f5e;
+      box-shadow: 0 0 16px rgba(244, 63, 94, 0.35);
+      animation: alertPulse 2.5s infinite;
+    }
+    .action-TAKE_PROFIT {
+      background: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+      border: 1px solid #a855f7;
+      box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
+    }
+    .action-EXIT_WATCH, .action-WATCH {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border: 1px solid #f59e0b;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+    }
+    .action-WAIT {
+      background: rgba(100, 116, 139, 0.22);
+      color: #cbd5e1;
+      border: 1px solid #475569;
+    }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--accent-glow); } 70% { box-shadow: 0 0 0 8px rgba(0,0,0,0); } }
 
     /* Tables */
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-    th { color: var(--muted); font-weight: 600; background: rgba(0,0,0,0.15); }
-    tr:hover { background: rgba(255,255,255,0.02); }
-    .scroll { overflow-x: auto; max-height: 440px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+    th {
+      color: #94a3b8;
+      font-weight: 700;
+      background: #0d1527;
+      text-transform: uppercase;
+      font-size: 11.5px;
+      letter-spacing: 0.5px;
+    }
+    tr:hover { background: rgba(255, 255, 255, 0.035); }
+    .scroll {
+      overflow-x: auto;
+      max-height: 480px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
 
     /* Forms */
-    form { display: flex; flex-wrap: wrap; gap: 12px; }
+    form { display: flex; flex-wrap: wrap; gap: 14px; }
     label {
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      font-size: 12px;
-      color: var(--muted);
+      gap: 6px;
+      font-size: 12.5px;
+      color: #cbd5e1;
       font-weight: 600;
       flex: 1 1 180px;
     }
     input, select, textarea {
-      border: 1px solid var(--line);
-      background: #071019;
-      color: var(--ink);
-      padding: 9px 12px;
-      border-radius: 6px;
-      font-size: 13px;
+      border: 1px solid #243452;
+      background: #0d1527;
+      color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13.5px;
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+    input:focus, select:focus, textarea:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+    }
     button {
-      background: var(--accent);
-      color: #041a0e;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
       border: 0;
-      padding: 9px 18px;
-      border-radius: 6px;
+      padding: 10px 20px;
+      border-radius: 8px;
       font-weight: 700;
+      font-size: 13.5px;
       cursor: pointer;
-      transition: 0.15s ease;
+      transition: all 0.2s ease;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
+      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
     }
-    button:hover { filter: brightness(1.1); transform: translateY(-1px); }
-    button.btn-secondary { background: #1b2d3d; color: var(--ink); }
-    button.btn-ai { background: linear-gradient(135deg, #8e44ad, #3498db); color: #fff; }
-    button.btn-danger { background: var(--bad); color: #fff; }
-    button.btn-sm { padding: 5px 10px; font-size: 11px; }
+    button:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.45);
+    }
+    button.btn-secondary {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+    button.btn-secondary:hover {
+      background: #27374d;
+      border-color: #475569;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+    button.btn-ai {
+      background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+      color: #ffffff;
+      box-shadow: 0 2px 12px rgba(139, 92, 246, 0.4);
+    }
+    button.btn-ai:hover {
+      box-shadow: 0 4px 18px rgba(139, 92, 246, 0.6);
+    }
+    button.btn-danger {
+      background: linear-gradient(135deg, #f43f5e, #e11d48);
+      color: #ffffff;
+      box-shadow: 0 2px 12px rgba(244, 63, 94, 0.35);
+    }
+    button.btn-danger:hover {
+      box-shadow: 0 4px 18px rgba(244, 63, 94, 0.55);
+    }
+    button.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
 
     /* Notifications list */
     .note-item {
-      padding: 12px 14px;
-      border-radius: 8px;
-      background: #07111a;
-      border-left: 4px solid var(--blue);
-      margin-bottom: 10px;
-      font-size: 12px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: #0d1629;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-left: 5px solid var(--blue);
+      margin-bottom: 12px;
+      font-size: 13px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 12px;
+      gap: 14px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     }
     .note-item.note-CRITICAL {
-      border-left-color: var(--bad);
-      background: #1c0a0e;
-      border: 1px solid #4a181e;
-      border-left-width: 6px;
+      border-left-color: #f43f5e;
+      background: rgba(244, 63, 94, 0.08);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      border-left: 5px solid #f43f5e;
+      box-shadow: 0 2px 10px rgba(244, 63, 94, 0.2);
     }
     .note-item.note-WARNING {
-      border-left-color: var(--warning);
-      background: #1a1408;
+      border-left-color: #f59e0b;
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-left: 5px solid #f59e0b;
     }
-    .note-item.is-read { opacity: 0.55; }
+    .note-item.is-read { opacity: 0.6; }
 
     /* Modal */
     .modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.75);
+      background: rgba(0, 0, 0, 0.82);
       z-index: 100;
       align-items: center;
       justify-content: center;
-      backdrop-filter: blur(4px);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
     .modal-overlay.open { display: flex; }
     .modal-box {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 14px;
+      background: #111a2e;
+      border: 1px solid var(--line-highlight);
+      border-radius: 16px;
       width: 90%;
-      max-width: 650px;
-      padding: 24px;
+      max-width: 680px;
+      padding: 26px;
       max-height: 85vh;
       overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
     }
 
     /* Toast status */
     #status {
       position: fixed;
-      right: 20px;
-      bottom: 20px;
+      right: 24px;
+      bottom: 24px;
       z-index: 105;
-      padding: 12px 18px;
-      border-radius: 8px;
-      font-weight: 600;
+      padding: 14px 22px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 13.5px;
       display: none;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      animation: fadeIn 0.2s;
     }
     #status.show { display: block; }
-    #status.success { background: #163826; border: 1px solid var(--accent); color: #fff; }
-    #status.error { background: #44181d; border: 1px solid var(--bad); color: #fff; }
+    #status.success {
+      background: #064e3b;
+      border: 1px solid #10b981;
+      color: #ecfdf5;
+      box-shadow: 0 4px 18px rgba(16, 185, 129, 0.4);
+    }
+    #status.error {
+      background: #881337;
+      border: 1px solid #f43f5e;
+      color: #fff1f2;
+      box-shadow: 0 4px 18px rgba(244, 63, 94, 0.4);
+    }
 
     /* Responsive */
     @media (max-width: 900px) {
       .span-3, .span-4, .span-6, .span-8 { grid-column: span 12; }
       .metric-grid { grid-template-columns: repeat(2, 1fr); }
-      .header-inner { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .header-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
       .header-status { width: 100%; justify-content: space-between; }
     }
   </style>
@@ -1015,15 +1185,15 @@ function renderDashboardPage(d) {
         <span style="font-size:18px;font-weight:700">${asset}/THB</span>
         <span style="color:var(--muted)">ต้นทุนจริง: <b>${fmt(entryPrice, 4)}</b> · ปัจจุบัน: <b>${fmt(currentPrice, 4)} THB</b></span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;background:#071019;padding:8px;border-radius:6px;border:1px solid #132230">
-        <div><small style="color:var(--muted);display:block">จำนวนที่ถือ</small><b>${fmt(qty, 4)} ${asset}</b></div>
-        <div><small style="color:var(--muted);display:block">มูลค่าตลาด</small><b>${fmt(pos ? pos.market_value : 0, 2)} THB</b></div>
+      <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;background:linear-gradient(145deg, #15223b, #0d1527);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 2px 8px rgba(0,0,0,0.18)">
+        <div><small style="color:var(--muted);display:block;font-size:11.5px;font-weight:600;margin-bottom:4px">จำนวนที่ถือ</small><b style="font-size:15px;color:#fff">${fmt(qty, 4)} ${asset}</b></div>
+        <div><small style="color:var(--muted);display:block;font-size:11.5px;font-weight:600;margin-bottom:4px">มูลค่าตลาด</small><b style="font-size:15px;color:#fff">${fmt(pos ? pos.market_value : 0, 2)} THB</b></div>
         <div>
-          <small style="color:var(--muted);display:block">กำไร/ขาดทุน</small>
-          <b class="${unPnl >= 0 ? 'pos-green' : 'pos-red'}">${unPnl >= 0 ? '+' : ''}${fmt(unPnl, 2)} (${fmt(unPnlPct, 2)}%)</b>
+          <small style="color:var(--muted);display:block;font-size:11.5px;font-weight:600;margin-bottom:4px">กำไร/ขาดทุน</small>
+          <b class="${unPnl >= 0 ? 'pos-green' : 'pos-red'}" style="font-size:15px">${unPnl >= 0 ? '+' : ''}${fmt(unPnl, 2)} (${fmt(unPnlPct, 2)}%)</b>
         </div>
       </div>
-      <div style="margin-top:8px;color:var(--accent);font-size:12px">
+      <div style="margin-top:10px;color:var(--accent-bright);font-size:13px;font-weight:600">
         <b>คำแนะนำปัจจุบัน:</b> ${reason}
       </div>
     `;
@@ -1132,18 +1302,18 @@ function renderPositionPage(d) {
         <span class="${unPnl >= 0 ? 'pos-green' : 'pos-red'}">${unPnl >= 0 ? '+' : ''}${fmt(unPnl, 4)} THB (${unPnlPct >= 0 ? '+' : ''}${fmt(unPnlPct, 2)}%)</span>
       </div>
     </div>
-    <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;font-size:13px;display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;margin-top:10px">
-      <div><b>จุดตัดขาดทุน (Stop Loss):</b> ${plan ? fmt(plan.stop_loss, 4) : 'N/A'} THB</div>
-      <div><b>จุดตัดขาดทุนเลื่อน (Trailing Stop):</b> ${plan ? fmt(plan.effective_stop, 4) : 'N/A'} THB</div>
-      <div><b>เป้าหมายทำกำไร 1 (TP1):</b> ${plan ? fmt(plan.take_profit_1, 4) : 'N/A'} THB</div>
-      <div><b>เป้าหมายทำกำไร 2 (TP2):</b> ${plan ? fmt(plan.take_profit_2, 4) : 'N/A'} THB</div>
-      <div><b>กลยุทธ์:</b> ${strategyDisplay}</div>
-      <div><b>คะแนนตอนเข้า (Entry Score):</b> ${scoreDisplay}</div>
-      <div><b>ประเภทแผน:</b> ${planTypeDisplay}</div>
-      <div><b>ค่าธรรมเนียมเข้า:</b> <span style="color:var(--muted)">ไม่ระบุ (Unknown)</span></div>
-      <div><b>ประมาณการค่าธรรมเนียมออก (0.25%):</b> <span style="color:var(--muted)">${fmt(estExitFee, 2)} THB (แยกแสดง)</span></div>
-      <div><b>กำไรสุทธิหลังหักประมาณการค่าธรรมเนียม:</b> <span class="${netUnPnl >= 0 ? 'pos-green' : 'pos-red'}">${netUnPnl >= 0 ? '+' : ''}${fmt(netUnPnl, 2)} THB</span></div>
-      <div style="grid-column:1/-1"><b>คำแนะนำปัจจุบัน:</b> <span style="color:var(--accent)">${reason}</span></div>
+    <div style="background:linear-gradient(145deg, #131d33, #0d1527);padding:16px 18px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);font-size:13.5px;display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;margin-top:14px;box-shadow:0 2px 10px rgba(0,0,0,0.2)">
+      <div><b style="color:var(--muted)">จุดตัดขาดทุน (Stop Loss):</b> <span style="font-weight:700;color:#f8fafc">${plan ? fmt(plan.stop_loss, 4) : 'N/A'} THB</span></div>
+      <div><b style="color:var(--muted)">จุดตัดขาดทุนเลื่อน (Trailing):</b> <span style="font-weight:700;color:#f8fafc">${plan ? fmt(plan.effective_stop, 4) : 'N/A'} THB</span></div>
+      <div><b style="color:var(--muted)">เป้าหมายทำกำไร 1 (TP1):</b> <span style="font-weight:700;color:#34d399">${plan ? fmt(plan.take_profit_1, 4) : 'N/A'} THB</span></div>
+      <div><b style="color:var(--muted)">เป้าหมายทำกำไร 2 (TP2):</b> <span style="font-weight:700;color:#34d399">${plan ? fmt(plan.take_profit_2, 4) : 'N/A'} THB</span></div>
+      <div><b style="color:var(--muted)">กลยุทธ์:</b> <span style="font-weight:700;color:#f8fafc">${strategyDisplay}</span></div>
+      <div><b style="color:var(--muted)">คะแนนตอนเข้า (Score):</b> <span style="font-weight:700;color:#f8fafc">${scoreDisplay}</span></div>
+      <div><b style="color:var(--muted)">ประเภทแผน:</b> <span style="font-weight:700;color:#f8fafc">${planTypeDisplay}</span></div>
+      <div><b style="color:var(--muted)">ค่าธรรมเนียมเข้า:</b> <span style="color:var(--muted)">ไม่ระบุ (Unknown)</span></div>
+      <div><b style="color:var(--muted)">ประมาณการค่าธรรมเนียมออก (0.25%):</b> <span style="color:var(--subtext)">${fmt(estExitFee, 2)} THB</span></div>
+      <div><b style="color:var(--muted)">กำไรสุทธิหลังหักประมาณการค่าธรรมเนียม:</b> <span class="${netUnPnl >= 0 ? 'pos-green' : 'pos-red'}" style="font-weight:800">${netUnPnl >= 0 ? '+' : ''}${fmt(netUnPnl, 2)} THB</span></div>
+      <div style="grid-column:1/-1;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;margin-top:4px"><b style="color:var(--muted)">คำแนะนำปัจจุบัน:</b> <span style="color:var(--accent);font-weight:700">${reason}</span></div>
     </div>
   `;
 
@@ -1517,45 +1687,45 @@ async function askDeepSeekForPosition() {
       : (a.watch_next || 'ไม่มี');
 
     const resultHtml = `
-      <div style="background:#091420;padding:10px 14px;border-radius:6px;border:1px solid #1c3550;margin-bottom:12px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-        <div><b style="color:var(--accent)">ข้อมูลที่ใช้วิเคราะห์ ณ:</b> <span style="color:var(--ink);font-weight:600">${ctxTime}</span></div>
-        <div><b>ประมวลผลเสร็จสิ้น:</b> <span style="color:var(--ink)">${analyzedAt}</span></div>
+      <div style="background:#0d1629;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);margin-bottom:14px;font-size:12.5px;color:var(--subtext);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div><b style="color:var(--accent-bright)">ข้อมูลที่ใช้วิเคราะห์ ณ:</b> <span style="color:#ffffff;font-weight:700">${ctxTime}</span></div>
+        <div><b>ประมวลผลเสร็จสิ้น:</b> <span style="color:#ffffff;font-weight:600">${analyzedAt}</span></div>
       </div>
-      <div style="background:#071019;padding:10px 14px;border-radius:6px;border:1px solid #142230;margin-bottom:12px;font-size:12px;color:var(--muted);line-height:1.6">
-        <div><b>ชุดข้อมูลที่ AI ใช้ประเมิน (Deterministic Snapshot):</b></div>
-        <div>ราคาตลาด: <b style="color:var(--ink)">${fmt(ctx.current_bitkub_price, 4)} THB</b> · ต้นทุนจริง: <b style="color:var(--ink)">${fmt(ctx.actual_entry_price, 4)} THB</b> · Gross P/L: <b style="${ctx.gross_unrealized_pnl >= 0 ? 'color:#34d399' : 'color:#f87171'}">${fmt(ctx.gross_unrealized_pnl, 4)} THB (${fmt(ctx.gross_unrealized_pnl_percent, 2)}%)</b></div>
-        <div>เทรนด์ 1h: <b style="color:var(--ink)">${ctx.trend_1h || 'N/A'}</b> · เทรนด์ 4h: <b style="color:var(--ink)">${ctx.trend_4h || 'N/A'}</b> · RSI: <b style="color:var(--ink)">${ctx.rsi !== undefined && ctx.rsi !== null ? fmt(ctx.rsi, 2) : 'N/A'}</b> · ATR: <b style="color:var(--ink)">${ctx.atr !== undefined && ctx.atr !== null ? fmt(ctx.atr, 4) : 'N/A'}</b> · BTC Bias: <b style="color:var(--ink)">${ctx.btc_market_bias || 'N/A'}</b></div>
+      <div style="background:#0d1629;padding:14px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);margin-bottom:14px;font-size:13px;color:var(--subtext);line-height:1.7">
+        <div style="font-weight:700;color:#ffffff;margin-bottom:4px">📊 ข้อมูลที่ AI ใช้ประเมิน (Deterministic Snapshot):</div>
+        <div>ราคาตลาด: <b style="color:#ffffff">${fmt(ctx.current_bitkub_price, 4)} THB</b> · ต้นทุนจริง: <b style="color:#ffffff">${fmt(ctx.actual_entry_price, 4)} THB</b> · Gross P/L: <b style="${ctx.gross_unrealized_pnl >= 0 ? 'color:#34d399' : 'color:#fb7185'}">${fmt(ctx.gross_unrealized_pnl, 4)} THB (${fmt(ctx.gross_unrealized_pnl_percent, 2)}%)</b></div>
+        <div>เทรนด์ 1h: <b style="color:#ffffff">${ctx.trend_1h || 'N/A'}</b> · เทรนด์ 4h: <b style="color:#ffffff">${ctx.trend_4h || 'N/A'}</b> · RSI: <b style="color:#ffffff">${ctx.rsi !== undefined && ctx.rsi !== null ? fmt(ctx.rsi, 2) : 'N/A'}</b> · ATR: <b style="color:#ffffff">${ctx.atr !== undefined && ctx.atr !== null ? fmt(ctx.atr, 4) : 'N/A'}</b> · BTC Bias: <b style="color:#ffffff">${ctx.btc_market_bias || 'N/A'}</b></div>
       </div>
-      <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <h4 style="margin:0;color:var(--accent)">1. การประเมินภาพรวม (Assessment)</h4>
-          <span class="badge badge-purple">ความมั่นใจ: ${a.confidence || 'N/A'}</span>
+      <div style="background:#131c31;padding:16px;border-radius:10px;border:1px solid rgba(168,85,247,0.3);margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,0.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h4 style="margin:0;color:#38bdf8;font-size:15px">1. การประเมินภาพรวม (Assessment)</h4>
+          <span class="badge badge-purple" style="font-size:12px">ความมั่นใจ: ${a.confidence || 'N/A'}</span>
         </div>
-        <p style="margin:0;color:var(--ink)">${a.assessment || 'N/A'}</p>
+        <p style="margin:0;color:#ffffff;font-size:14px;line-height:1.6">${a.assessment || 'N/A'}</p>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;margin-bottom:12px">
-        <div style="background:#081711;border:1px solid #143525;padding:10px;border-radius:6px">
-          <b style="color:#34d399">มุมมองเชิงบวก (Bull Case):</b>
-          <div style="margin-top:4px;color:var(--ink)">${a.bull_case || 'N/A'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;margin-bottom:14px">
+        <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.35);padding:14px;border-radius:10px">
+          <b style="color:#34d399;font-size:13.5px">มุมมองเชิงบวก (Bull Case):</b>
+          <div style="margin-top:6px;color:#f8fafc;line-height:1.5">${a.bull_case || 'N/A'}</div>
         </div>
-        <div style="background:#1c0d12;border:1px solid #3d141e;padding:10px;border-radius:6px">
-          <b style="color:#f87171">มุมมองเชิงลบ (Bear Case):</b>
-          <div style="margin-top:4px;color:var(--ink)">${a.bear_case || 'N/A'}</div>
+        <div style="background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.35);padding:14px;border-radius:10px">
+          <b style="color:#fb7185;font-size:13.5px">มุมมองเชิงลบ (Bear Case):</b>
+          <div style="margin-top:6px;color:#f8fafc;line-height:1.5">${a.bear_case || 'N/A'}</div>
         </div>
       </div>
-      <div style="background:#181308;border:1px solid #3e2e0a;padding:10px;border-radius:6px;margin-bottom:10px">
-        <b style="color:#fbbf24">ความเสี่ยงสำคัญ (Key Risks):</b>
-        ${risksList}
+      <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);padding:14px;border-radius:10px;margin-bottom:12px">
+        <b style="color:#fbbf24;font-size:13.5px">ความเสี่ยงสำคัญ (Key Risks):</b>
+        <div style="color:#f8fafc;margin-top:4px">${risksList}</div>
       </div>
-      <div style="background:#0d1821;border:1px solid #1c3247;padding:10px;border-radius:6px;margin-bottom:12px">
-        <b style="color:#60a5fa">สิ่งที่ต้องจับตาต่อไป (Watch Next):</b>
-        ${watchList}
+      <div style="background:rgba(14,165,233,0.1);border:1px solid rgba(14,165,233,0.35);padding:14px;border-radius:10px;margin-bottom:14px">
+        <b style="color:#38bdf8;font-size:13.5px">สิ่งที่ต้องจับตาต่อไป (Watch Next):</b>
+        <div style="color:#f8fafc;margin-top:4px">${watchList}</div>
       </div>
-      <div style="background:#11221b;padding:12px;border-radius:8px;border:1px solid var(--accent)">
-        <h4 style="margin:0 0 6px 0;color:#58d68d">บทสรุปคำแนะนำเพื่อประกอบการตัดสินใจ (Summary)</h4>
-        <p style="margin:0;color:var(--ink)">${a.summary || 'N/A'}</p>
+      <div style="background:rgba(16,185,129,0.14);padding:16px;border-radius:10px;border:1px solid #10b981;box-shadow:0 0 16px rgba(16,185,129,0.2)">
+        <h4 style="margin:0 0 8px 0;color:#34d399;font-size:15px">บทสรุปคำแนะนำเพื่อประกอบการตัดสินใจ (Summary)</h4>
+        <p style="margin:0;color:#ffffff;font-size:14px;line-height:1.6">${a.summary || 'N/A'}</p>
       </div>
-      <p style="font-size:11px;color:var(--muted);margin-top:12px">
+      <p style="font-size:12px;color:#94a3b8;margin-top:14px;line-height:1.5">
         ⚠️ คำเตือน: ข้อความข้างต้นเป็นความเห็นที่ 2 ประกอบการตัดสินใจเท่านั้น ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการเทรดจริงบนกระดานด้วยตนเอง
       </p>
     `;
