@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8010:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_PATH: /data/crypto_assistance.db
+    volumes:
+      - crypto_data:/data
+    restart: unless-stopped
+
+volumes:
+  crypto_data:
