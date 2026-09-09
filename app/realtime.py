@@ -38,6 +38,8 @@ class RealtimeMonitor:
         self.last_event_at: float | None = None
         self._last_alert: dict[str, float] = {}
         self._last_ai_sell_opinion: dict[str, float] = {}
+        self._last_candidate_status: dict[str, str] = {}
+        self._ws_disconnected_notified = False
         self._stop = asyncio.Event()
         self.exit_engine = PositionExitEngine()
 
@@ -55,6 +57,9 @@ class RealtimeMonitor:
             try:
                 async with websockets.connect(self.url, ping_interval=20, ping_timeout=20, close_timeout=5) as socket:
                     self.connected, backoff = True, 1
+                    if self._ws_disconnected_notified:
+                        self._ws_disconnected_notified = False
+                        self.db.notify("INFO", "Bitkub WebSocket connected", "เชื่อมต่อ Bitkub WebSocket สำเร็จและรับข้อมูลเรียบร้อยแล้ว")
                     async for raw in socket:
                         for line in str(raw).splitlines():
                             if line.strip():
@@ -63,7 +68,9 @@ class RealtimeMonitor:
                 raise
             except Exception as exc:
                 self.connected = False
-                self.db.notify("WARNING", "Bitkub WebSocket disconnected", f"ตัดการเชื่อมต่อ WebSocket Bitkub: กำลังลองใหม่ใน {backoff}s ({exc})")
+                if not self._ws_disconnected_notified:
+                    self._ws_disconnected_notified = True
+                    self.db.notify("WARNING", "Bitkub WebSocket disconnected", f"ตัดการเชื่อมต่อ WebSocket Bitkub: กำลังลองใหม่ใน {backoff}s ({exc})")
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)
             finally:
@@ -91,32 +98,78 @@ class RealtimeMonitor:
         candidates: list[tuple[str, str, dict]] = []
         now_bkk = datetime.now(ZoneInfo("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
 
+        # Portfolio Guard: Check if ANY position is open across portfolio
+        has_any_open_pos = (
+            context.get("has_open_position", False)
+            or bool(context.get("all_open_positions"))
+            or self.db.has_open_positions()
+        )
+
         if signals:
             buys = [signal for signal in signals if signal["signal"] == "BUY"]
             sells = [signal for signal in signals if signal["signal"] == "SELL"]
             four_hour = next((signal for signal in signals if signal["timeframe"] == "4h"), None)
 
             # Check BUY_NOW condition: >= 2 timeframes aligned, 4h not selling, price in entry zone
-            if len(buys) >= 2 and (not four_hour or four_hour["signal"] != "SELL"):
+            aligned = len(buys) >= 2 and (not four_hour or four_hour["signal"] != "SELL")
+            in_zone = False
+            if aligned:
                 reference = sum(signal["details"]["close"] for signal in buys) / len(buys)
                 entry_low = reference * 0.995
                 entry_high = reference * 1.01
-                if reference <= price <= entry_high:
-                    details = buys[0]["details"]
-                    score = round(sum(s["score"] for s in signals) / len(signals))
-                    msg = (
-                        f"🚨 ซื้อได้ตอนนี้ · {pair}\n\n"
-                        f"ราคาปัจจุบัน: {price:,.4f} บาท\n"
-                        f"โซนเข้า: {entry_low:,.4f} - {entry_high:,.4f} บาท\n"
-                        f"Stop Loss: {details.get('stop_loss', reference * 0.98):,.4f} บาท\n"
-                        f"TP1: {details.get('take_profit_1', reference * 1.03):,.4f} บาท\n"
-                        f"TP2: {details.get('take_profit_2', reference * 1.05):,.4f} บาท\n"
-                        f"คะแนน: {score}\n"
-                        f"เหตุผล: ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes ราคาอยู่ในโซนเข้า\n"
-                        f"เวลา: {now_bkk}\n\n"
-                        f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ"
+                in_zone = reference <= price <= entry_high
+
+                if in_zone:
+                    # STRICT ONE-POSITION SIGNAL GUARD:
+                    # Suppress BUY_NOW event, DeepSeek, and Telegram if ANY position is open.
+                    if has_any_open_pos:
+                        logger.info(
+                            "Portfolio Guard: Suppressed BUY_NOW for %s because another position is currently open.",
+                            pair,
+                        )
+                    else:
+                        details = buys[0]["details"]
+                        score = round(sum(s["score"] for s in signals) / len(signals))
+                        msg = (
+                            f"🚨 ซื้อได้ตอนนี้ · {pair}\n\n"
+                            f"ราคาปัจจุบัน: {price:,.4f} บาท\n"
+                            f"โซนเข้า: {entry_low:,.4f} - {entry_high:,.4f} บาท\n"
+                            f"Stop Loss: {details.get('stop_loss', reference * 0.98):,.4f} บาท\n"
+                            f"TP1: {details.get('take_profit_1', reference * 1.03):,.4f} บาท\n"
+                            f"TP2: {details.get('take_profit_2', reference * 1.05):,.4f} บาท\n"
+                            f"คะแนน: {score}\n"
+                            f"เหตุผล: ยืนยันสัญญาณซื้อ {len(buys)}/3 Timeframes ราคาอยู่ในโซนเข้า\n"
+                            f"เวลา: {now_bkk}\n\n"
+                            f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ"
+                        )
+                        candidates.append(("BUY_NOW", msg, {"price": price, "score": score}))
+
+            # Candidate status tracking for state transitions:
+            # WAIT -> WATCH, WATCH -> BUY_NOW, BUY_NOW -> no longer valid
+            if has_any_open_pos:
+                cand_status = "WAIT"
+            elif aligned and in_zone:
+                cand_status = "BUY_NOW"
+            elif aligned or len(buys) >= 1:
+                cand_status = "WATCH"
+            else:
+                cand_status = "WAIT"
+
+            prev_cand_status = self._last_candidate_status.get(pair)
+            self._last_candidate_status[pair] = cand_status
+            if prev_cand_status is not None and prev_cand_status != cand_status:
+                if prev_cand_status == "WAIT" and cand_status == "WATCH":
+                    self.db.notify(
+                        "INFO",
+                        f"WATCH · {pair}",
+                        f"เริ่มจับตา: สัญญาณซื้อเริ่มสอดคล้อง {len(buys)}/3 Timeframes (รอย่อเข้าโซนซื้อ)",
                     )
-                    candidates.append(("BUY_NOW", msg, {"price": price, "score": score}))
+                elif prev_cand_status == "BUY_NOW" and cand_status != "BUY_NOW":
+                    self.db.notify(
+                        "INFO",
+                        f"BUY_NOW no longer valid · {pair}",
+                        f"สัญญาณซื้อ {pair} สิ้นสุดลง (เปลี่ยนสถานะเป็น {to_thai_status(cand_status)})",
+                    )
 
             if len(sells) >= 2 and (not four_hour or four_hour["signal"] != "BUY"):
                 reference = sum(signal["details"]["close"] for signal in sells) / len(sells)
@@ -168,6 +221,7 @@ class RealtimeMonitor:
                     candidates.append(("TAKE_PROFIT", msg, {"price": price}))
 
             for plan in context["plans"]:
+                prev_action = plan.get("current_action") or plan.get("action")
                 action, reason, effective_stop = self.exit_engine.evaluate(price, plan, signals)
                 self.db.update_position_plan(plan["mode"], action, reason, price, effective_stop)
 
@@ -177,6 +231,7 @@ class RealtimeMonitor:
                     None,
                 )
                 has_open_pos = matching_pos is not None
+                is_state_change = bool(prev_action is not None and action != prev_action)
 
                 if action == "SELL_NOW":
                     # Automatic DeepSeek second opinion for critical SELL_NOW:
@@ -191,6 +246,7 @@ class RealtimeMonitor:
                             effective_stop=effective_stop,
                             signals=signals,
                             context=context,
+                            force_state_change=is_state_change,
                         )
                     else:
                         th_action = to_thai_status(action)
@@ -203,7 +259,7 @@ class RealtimeMonitor:
                             f"เวลา: {now_bkk}\n"
                             f"คำแนะนำ: การตัดสินใจดำเนินการขึ้นอยู่กับผู้ใช้ โดยบันทึกผลการเทรดในระบบ"
                         )
-                        candidates.append((action, msg, {"price": price}))
+                        candidates.append((action, msg, {"price": price, "force_state_change": is_state_change}))
 
                 elif action == "STOP_LOSS":
                     # Urgent exit! Send deterministic alert immediately without waiting for AI
@@ -224,7 +280,7 @@ class RealtimeMonitor:
                         f"เวลา: {now_bkk}\n\n"
                         f"⚠️ คำแนะนำ: การตัดสินใจดำเนินการขึ้นอยู่กับผู้ใช้ ให้ดำเนินการขายตัดขาดทุนบน Bitkub แล้วบันทึกในระบบ"
                     )
-                    candidates.append((action, msg, {"price": price}))
+                    candidates.append((action, msg, {"price": price, "force_state_change": is_state_change}))
 
                 elif action in {"EXIT_WATCH", "TAKE_PROFIT"}:
                     # DeepSeek is NOT called for EXIT_WATCH by default
@@ -235,15 +291,24 @@ class RealtimeMonitor:
                         f"ต้นทุนจริง: {plan['entry_price']:,.4f} บาท\n"
                         f"ราคาปัจจุบัน: {price:,.4f} บาท\n"
                         f"เหตุผล: {reason}\n"
-                        f"เวลา: {now_bkk}\n"
+                        f"เวลา: {now_bkk}\n\n"
                         f"คำแนะนำ: การตัดสินใจดำเนินการขึ้นอยู่กับผู้ใช้ โดยบันทึกผลการเทรดในระบบ"
                     )
-                    candidates.append((action, msg, {"price": price}))
+                    candidates.append((action, msg, {"price": price, "force_state_change": is_state_change}))
 
-                # action == "HOLD" -> DeepSeek is NOT called, no candidates appended
+                elif action == "HOLD":
+                    if prev_action == "EXIT_WATCH":
+                        self.db.notify(
+                            "INFO",
+                            f"HOLD · {pair}",
+                            f"สัญญาณกลับสู่ปกติ: โมเมนตัมฟื้นตัว สภาพตลาดยังอยู่ในเกณฑ์ปกติ ({reason})",
+                        )
 
-        for kind, message, _ in candidates:
-            await self._alert(kind, pair, message)
+        for item in candidates:
+            kind, message = item[0], item[1]
+            meta = item[2] if len(item) > 2 and isinstance(item[2], dict) else {}
+            force = meta.get("force_state_change", False)
+            await self._alert(kind, pair, message, force_state_change=force)
 
     async def _handle_sell_now_with_ai(
         self,
@@ -255,6 +320,7 @@ class RealtimeMonitor:
         effective_stop: float,
         signals: list[dict],
         context: dict,
+        force_state_change: bool = False,
     ):
         now_bkk = datetime.now(ZoneInfo("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
         asset = plan.get("asset", pair.split("/")[0].upper())
@@ -294,7 +360,7 @@ class RealtimeMonitor:
         ai_cooldown_key = f"{plan['mode']}:{pair}:SELL_NOW"
         now_mono = time.monotonic()
         last_ai_time = self._last_ai_sell_opinion.get(ai_cooldown_key)
-        in_cooldown = (last_ai_time is not None) and ((now_mono - last_ai_time) < self.ai_sell_cooldown_seconds)
+        in_cooldown = (not force_state_change) and (last_ai_time is not None) and ((now_mono - last_ai_time) < self.ai_sell_cooldown_seconds)
 
         if in_cooldown:
             ai_section = (
@@ -411,17 +477,18 @@ class RealtimeMonitor:
             f"{ai_section}\n\n"
             f"⚠️ ระบบเพื่อการตัดสินใจเท่านั้น — ไม่มีการส่งคำสั่งเทรดอัตโนมัติ ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการบน Bitkub ด้วยตนเอง"
         )
-        await self._alert("SELL_NOW", pair, msg)
+        await self._alert("SELL_NOW", pair, msg, force_state_change=force_state_change)
 
-    async def _alert(self, kind: str, pair: str, message: str):
+    async def _alert(self, kind: str, pair: str, message: str, force_state_change: bool = False):
         key, current = f"{kind}:{pair}", time.monotonic()
         cooldown = self.db.settings().get("realtime_alert_cooldown_seconds", 300)
         previous = self._last_alert.get(key)
-        if previous is not None and current - previous < cooldown:
+        if not force_state_change and previous is not None and current - previous < cooldown:
             return
         self._last_alert[key] = current
         title = f"{kind} · {pair}"
-        self.db.notify("CRITICAL", title, message)
+        level = "WARNING" if kind == "EXIT_WATCH" else "CRITICAL"
+        self.db.notify(level, title, message)
         if self.telegram_send and kind in {"BUY_NOW", "SELL_NOW", "STOP_LOSS", "TAKE_PROFIT"}:
             try:
                 text = message if message.startswith("🚨") else f"🚨 {title}\n\n{message}"

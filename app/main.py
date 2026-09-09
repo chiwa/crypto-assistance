@@ -58,10 +58,19 @@ def take_daily_snapshots():
     db.create_daily_snapshot("PAPER")
 
 
+_last_watchdog_warning_state: bool = False
+
+
 async def market_data_watchdog():
+    global _last_watchdog_warning_state
     import time
-    if not realtime.connected or (realtime.last_event_at and time.time() - realtime.last_event_at > 120):
+    is_stale = not realtime.connected or (realtime.last_event_at is not None and time.time() - realtime.last_event_at > 120)
+    if is_stale and not _last_watchdog_warning_state:
+        _last_watchdog_warning_state = True
         db.notify("WARNING", "SYSTEM_WARNING", "การเชื่อมต่อ Bitkub WebSocket ขัดข้องหรือข้อมูลไม่อัปเดต; ระบบใช้ REST Scanner สำรองข้อมูลต่อเนื่อง")
+    elif not is_stale and _last_watchdog_warning_state:
+        _last_watchdog_warning_state = False
+        db.notify("INFO", "SYSTEM_NORMAL", "การเชื่อมต่อ Bitkub WebSocket กลับสู่ภาวะปกติ ข้อมูลอัปเดตต่อเนื่อง")
 
 
 @asynccontextmanager
@@ -288,6 +297,7 @@ async def second_opinion(request: SecondOpinionRequest):
 @app.post("/api/ai/ask-position")
 async def ask_position_opinion(request: AskDeepSeekRequest):
     norm_mode = normalize_mode(request.mode)
+    now_bkk = datetime.now(ZoneInfo("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
     portfolio = db.portfolio(norm_mode)
     positions = portfolio.get("positions", [])
     target_asset = request.symbol.split("/")[0].upper()
@@ -310,6 +320,17 @@ async def ask_position_opinion(request: AskDeepSeekRequest):
     rsi_val = details.get("rsi")
     atr_val = details.get("atr")
     rel_vol = details.get("relative_volume")
+    ema_9 = details.get("ema_9", details.get("ema_fast"))
+    ema_20 = details.get("ema_20", details.get("ema_slow"))
+    ema_50 = details.get("ema_50")
+
+    btc_signals = context.get("btc_signals", [])
+    btc_primary = (
+        next((s for s in btc_signals if s.get("timeframe") == "4h"), None)
+        or next((s for s in btc_signals if s.get("timeframe") == "1h"), None)
+        or (btc_signals[0] if btc_signals else None)
+    )
+    btc_market_bias = btc_primary.get("regime", "NEUTRAL") if btc_primary else "NEUTRAL"
 
     actual_entry_price = float(pos["average_cost"]) if pos else (float(plan["entry_price"]) if plan else 0.0)
     current_price = float(pos["market_price"]) if pos else (float(plan["entry_price"]) if plan else 0.0)
@@ -317,9 +338,12 @@ async def ask_position_opinion(request: AskDeepSeekRequest):
     gross_unrealized_pnl = float(pos["gross_unrealized_pnl"]) if pos else 0.0
     gross_unrealized_pct = float(pos["gross_unrealized_pnl_percent"]) if pos else 0.0
 
+    # Immutable deterministic market snapshot
     structured_ctx = {
         "symbol": request.symbol,
         "mode": norm_mode,
+        "context_timestamp": now_bkk,
+        "snapshot_timestamp": now_bkk,
         "actual_entry_price": actual_entry_price,
         "quantity": quantity,
         "current_bitkub_price": current_price,
@@ -331,6 +355,13 @@ async def ask_position_opinion(request: AskDeepSeekRequest):
         "rsi": rsi_val,
         "atr": atr_val,
         "relative_volume": rel_vol,
+        "ema_structure": {
+            "ema_9": ema_9,
+            "ema_20": ema_20,
+            "ema_50": ema_50,
+        },
+        "market_regime": primary_sig.get("regime", "UNKNOWN") if primary_sig else "UNKNOWN",
+        "btc_market_bias": btc_market_bias,
         "current_strategy": plan["strategy"] if plan else "None",
         "current_action": plan["current_action"] if plan else "HOLD",
         "stop": plan["stop_loss"] if plan else None,
@@ -355,9 +386,12 @@ async def ask_position_opinion(request: AskDeepSeekRequest):
     }
 
     result = await deepseek.ask_structured(structured_ctx)
+    analyzed_at = datetime.now(ZoneInfo("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
     return {
         "status": result.get("status", "connected"),
         "analysis": result,
         "context": structured_ctx,
+        "context_timestamp": now_bkk,
+        "analyzed_at": analyzed_at,
         "disclaimer": "ความคิดเห็นที่ 2 สำหรับประกอบการตัดสินใจเท่านั้น ไม่มีการส่งคำสั่งเทรดอัตโนมัติ",
     }

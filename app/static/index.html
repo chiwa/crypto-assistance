@@ -466,7 +466,7 @@ function renderPositionMonitor(d) {
   const estExitFee = pos ? pos.estimated_exit_fee : (mVal * 0.0025);
   const netUnPnl = (pos && pos.net_unrealized_pnl !== undefined) ? pos.net_unrealized_pnl : (unPnl - estExitFee);
   const action = plan ? plan.current_action : 'HOLD';
-  const reason = plan ? plan.action_reason : 'ถือต่อ';
+  const reason = plan ? getThaiReason(plan.action_reason) : 'ถือต่อ';
   const strategyDisplay = plan ? getThaiStrategy(plan.strategy) : 'N/A';
   const scoreDisplay = (plan && plan.entry_score !== null && plan.entry_score !== undefined && plan.entry_score !== 0) ? `${plan.entry_score}/100` : 'N/A / ไม่มีข้อมูล';
   const planTypeDisplay = plan ? getThaiPlanType(plan.plan_type) : 'N/A';
@@ -537,6 +537,35 @@ function getThaiAction(a) {
     'WATCH': 'จับตา'
   };
   return map[a] || a;
+}
+
+function getThaiReason(r) {
+  if (!r) return 'ถือต่อ';
+  if (r.includes('setup remains valid') || r.includes('สัญญาณยังคงเป็นไปตามแผน')) {
+    return 'สัญญาณยังคงเป็นไปตามแผน (setup remains valid)';
+  }
+  if (r.includes('Trailing stop touched') || r.includes('แตะจุดตัดขาดทุนเลื่อน')) {
+    return 'แตะจุดตัดขาดทุนเลื่อน (Trailing stop touched)';
+  }
+  if (r.includes('Hard stop loss touched') || r.includes('แตะจุดตัดขาดทุนหลัก')) {
+    return 'แตะจุดตัดขาดทุนหลัก (Hard stop loss touched)';
+  }
+  if (r.includes('TAKE_PROFIT_2 reached') || r.includes('แตะเป้าหมายกำไรที่ 2')) {
+    return 'แตะเป้าหมายกำไรที่ 2 (TAKE_PROFIT_2 reached)';
+  }
+  if (r.includes('TAKE_PROFIT_1 reached') || r.includes('แตะเป้าหมายกำไรที่ 1')) {
+    return 'แตะเป้าหมายกำไรที่ 1 (TAKE_PROFIT_1 reached; consider partial exit)';
+  }
+  if (r.includes('MOMENTUM_REVERSAL developing') || r.includes('โมเมนตัมเริ่มกลับทิศ')) {
+    return 'โมเมนตัมเริ่มกลับทิศ (MOMENTUM_REVERSAL developing)';
+  }
+  if (r.includes('TREND_INVALIDATION') || r.includes('แนวโน้มขัดแย้งกับกลยุทธ์')) {
+    return 'แนวโน้มขัดแย้งกับกลยุทธ์ (TREND_INVALIDATION across strategy timeframes)';
+  }
+  if (r.includes('Position recorded')) {
+    return 'บันทึกสถานะการเทรดแล้ว';
+  }
+  return r;
 }
 
 function renderBestCandidate(d) {
@@ -736,6 +765,10 @@ async function askDeepSeekForPosition() {
       }
     }
 
+    const ctx = res.context || {};
+    const ctxTime = res.context_timestamp || ctx.context_timestamp || 'N/A';
+    const analyzedAt = res.analyzed_at || 'N/A';
+
     const risksList = Array.isArray(a.key_risks) && a.key_risks.length
       ? `<ul style="margin:4px 0 0 18px;padding:0">${a.key_risks.map(r => `<li>${r}</li>`).join('')}</ul>`
       : (a.key_risks || 'ไม่มี');
@@ -744,6 +777,15 @@ async function askDeepSeekForPosition() {
       : (a.watch_next || 'ไม่มี');
 
     const resultHtml = `
+      <div style="background:#091420;padding:10px 14px;border-radius:6px;border:1px solid #1c3550;margin-bottom:12px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <div><b style="color:var(--accent)">ข้อมูลที่ใช้วิเคราะห์ ณ:</b> <span style="color:var(--ink);font-weight:600">${ctxTime}</span></div>
+        <div><b>ประมวลผลเสร็จสิ้น:</b> <span style="color:var(--ink)">${analyzedAt}</span></div>
+      </div>
+      <div style="background:#071019;padding:10px 14px;border-radius:6px;border:1px solid #142230;margin-bottom:12px;font-size:12px;color:var(--muted);line-height:1.6">
+        <div><b>ชุดข้อมูลที่ AI ใช้ประเมิน (Deterministic Snapshot):</b></div>
+        <div>ราคาตลาด: <b style="color:var(--ink)">${fmt(ctx.current_bitkub_price, 4)} THB</b> · ต้นทุนจริง: <b style="color:var(--ink)">${fmt(ctx.actual_entry_price, 4)} THB</b> · Gross P/L: <b style="${ctx.gross_unrealized_pnl >= 0 ? 'color:#34d399' : 'color:#f87171'}">${fmt(ctx.gross_unrealized_pnl, 4)} THB (${fmt(ctx.gross_unrealized_pnl_percent, 2)}%)</b></div>
+        <div>เทรนด์ 1h: <b style="color:var(--ink)">${ctx.trend_1h || 'N/A'}</b> · เทรนด์ 4h: <b style="color:var(--ink)">${ctx.trend_4h || 'N/A'}</b> · RSI: <b style="color:var(--ink)">${ctx.rsi !== undefined && ctx.rsi !== null ? fmt(ctx.rsi, 2) : 'N/A'}</b> · ATR: <b style="color:var(--ink)">${ctx.atr !== undefined && ctx.atr !== null ? fmt(ctx.atr, 4) : 'N/A'}</b> · BTC Bias: <b style="color:var(--ink)">${ctx.btc_market_bias || 'N/A'}</b></div>
+      </div>
       <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <h4 style="margin:0;color:var(--accent)">1. การประเมินภาพรวม (Assessment)</h4>
@@ -785,13 +827,16 @@ async function askDeepSeekForPosition() {
       onScreenBox.style.display = 'block';
       onScreenBox.innerHTML = `
         <div style="border-top:1px dashed #1e3a5f;padding-top:12px;margin-top:12px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <b style="color:var(--accent)">🤖 ความเห็นที่ 2 จาก DeepSeek (ล่าสุด):</b>
             <span class="badge" style="background:#2c1a3a;color:#c39bd3">ความมั่นใจ: ${a.confidence || 'N/A'}</span>
           </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+            ข้อมูลที่ใช้วิเคราะห์ ณ: <b style="color:var(--ink)">${ctxTime}</b> (ประมวลผลเสร็จสิ้น: ${analyzedAt})
+          </div>
           <div style="font-size:13px;color:var(--ink);margin-bottom:8px"><b>การประเมิน:</b> ${a.assessment || 'N/A'}</div>
           <div style="font-size:13px;color:#58d68d;margin-bottom:8px"><b>บทสรุป:</b> ${a.summary || 'N/A'}</div>
-          <div style="font-size:12px"><a href="javascript:void(0)" onclick="$('#ai-modal').classList.add('open')" style="color:var(--accent)">🔍 ดูรายละเอียดความเห็นทั้งหมด (Bull/Bear/Risks/Watch)</a></div>
+          <div style="font-size:12px"><a href="javascript:void(0)" onclick="$('#ai-modal').classList.add('open')" style="color:var(--accent)">🔍 ดูรายละเอียดความเห็นทั้งหมดและข้อมูล Snapshot</a></div>
         </div>
       `;
     }

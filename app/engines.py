@@ -39,7 +39,7 @@ class EntryEngine:
         avg_score = round(fmean(s["score"] for s in signals)) if signals else 0
         closes = [s["details"]["close"] for s in buys]
         ref = fmean(closes) if closes else current_price
-        atr_val = fmean(s["details"]["atr"] for s in signals) if signals else current_price * 0.01
+        atr_val = fmean(s["details"].get("atr", current_price * 0.01) for s in signals) if signals else current_price * 0.01
         risk = max(atr_val * 1.5, ref * 0.015)
         
         regime = four["regime"] if four else "UNKNOWN"
@@ -118,31 +118,31 @@ class PositionExitEngine:
         if price <= effective:
             is_trailing = effective > initial_stop
             action = "STOP_LOSS"
-            reason = "Trailing stop touched" if is_trailing else "Hard stop loss touched"
+            reason = "แตะจุดตัดขาดทุนเลื่อน (Trailing stop touched)" if is_trailing else "แตะจุดตัดขาดทุนหลัก (Hard stop loss touched)"
             return action, reason, round(effective, 4)
 
         # 2. Take Profit 2
         tp2 = float(plan["take_profit_2"])
         if price >= tp2:
-            return "SELL_NOW", "TAKE_PROFIT_2 reached", round(effective, 4)
+            return "SELL_NOW", "แตะเป้าหมายกำไรที่ 2 (TAKE_PROFIT_2 reached)", round(effective, 4)
 
         # 3. Take Profit 1
         tp1 = float(plan["take_profit_1"])
         if price >= tp1:
-            return "TAKE_PROFIT", "TAKE_PROFIT_1 reached; consider partial exit", round(effective, 4)
+            return "TAKE_PROFIT", "แตะเป้าหมายกำไรที่ 1 (TAKE_PROFIT_1 reached; consider partial exit)", round(effective, 4)
 
         # 4. Strategy Exit / Trend Invalidation
         sells = sum(1 for s in signals if s.get("signal") == "SELL")
         four = next((s for s in signals if s.get("timeframe") == "4h"), None)
         if sells >= 2 or (four and four.get("signal") == "SELL"):
-            return "SELL_NOW", "TREND_INVALIDATION across strategy timeframes", round(effective, 4)
+            return "SELL_NOW", "แนวโน้มขัดแย้งกับกลยุทธ์ (TREND_INVALIDATION across strategy timeframes)", round(effective, 4)
 
         # 5. Momentum Reversal
         negatives = sum(1 for s in signals if s.get("score", 0) < 0)
         if negatives >= 2:
-            return "EXIT_WATCH", "MOMENTUM_REVERSAL developing", round(effective, 4)
+            return "EXIT_WATCH", "โมเมนตัมเริ่มกลับทิศ (MOMENTUM_REVERSAL developing)", round(effective, 4)
 
-        return "HOLD", "setup remains valid", round(effective, 4)
+        return "HOLD", "สัญญาณยังคงเป็นไปตามแผน (setup remains valid)", round(effective, 4)
 
 
 def build_exit_plan_from_market(

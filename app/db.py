@@ -689,6 +689,20 @@ class Database:
                 (pair, price, now()),
             )
 
+    def has_open_positions(self, mode: str | None = None) -> bool:
+        with self.connect() as conn:
+            if mode:
+                norm_mode = normalize_mode(mode)
+                row = conn.execute(
+                    "SELECT COUNT(*) v FROM positions WHERE mode=? AND quantity>0",
+                    (norm_mode,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) v FROM positions WHERE quantity>0",
+                ).fetchone()
+            return bool(row["v"] > 0)
+
     def realtime_context(self, pair: str) -> dict:
         asset = pair.split("/")[0].upper()
         with self.connect() as conn:
@@ -702,11 +716,16 @@ class Database:
                 "SELECT * FROM position_plans WHERE asset=?",
                 (asset,),
             ).fetchall()
+            all_open = conn.execute(
+                "SELECT * FROM positions WHERE quantity>0",
+            ).fetchall()
         return {
             "signals": signals,
             "btc_signals": btc_signals,
             "positions": [dict(row) for row in positions],
             "plans": [dict(row) for row in plans],
+            "all_open_positions": [dict(row) for row in all_open],
+            "has_open_position": len(all_open) > 0,
         }
 
     def update_position_plan(self, mode: str, action: str, reason: str, price: float, effective_stop: float):
