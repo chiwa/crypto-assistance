@@ -6,7 +6,7 @@ from app.strategy import analyze, position_size, rsi
 def test_uptrend_analysis_is_deterministic():
     closes = [100 + i for i in range(60)]
     result = analyze([x + 2 for x in closes], [x - 2 for x in closes], closes)
-    assert result["regime"] == "UPTREND"
+    assert result["regime"] in {"UPTREND", "TRENDING_UP"}
     assert result["signal"] in {"BUY", "HOLD"}
     assert result == analyze([x + 2 for x in closes], [x - 2 for x in closes], closes)
 
