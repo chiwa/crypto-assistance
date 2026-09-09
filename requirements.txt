@@ -5,3 +5,8 @@ APScheduler==3.11.0
 pydantic-settings==2.10.1
 websockets==15.0.1
 pytest==8.4.1
+sqlalchemy==2.0.38
+alembic==1.14.1
+pandas==2.2.3
+numpy==2.2.3
+
