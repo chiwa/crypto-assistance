@@ -39,6 +39,9 @@ class SettingsRequest(BaseModel):
     estimated_exit_fee_percent: float = Field(default=.25, ge=0, le=5)
     scanner_enabled: bool
     websocket_enabled: bool = True
+    telegram_enabled: bool = True
+    ai_opinion_enabled: bool = True
+    ai_opinion_threshold: int = Field(default=75, ge=50, le=100)
     realtime_alert_cooldown_seconds: int = Field(default=300, ge=30, le=86400)
 
     @field_validator("timeframes")
