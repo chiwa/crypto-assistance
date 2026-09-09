@@ -1,23 +1,782 @@
 <!doctype html>
-<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Crypto Assistance</title>
-<style>
-:root{color-scheme:dark;--bg:#081018;--card:#111d28;--line:#233444;--ink:#e8f1f7;--muted:#8da3b3;--accent:#35d39a;--bad:#ff6978}*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#071019,#0b1722);color:var(--ink);font:14px system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:28px}h1{font-size:28px;margin:0}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.badge{padding:7px 11px;background:#12372c;color:#68efbd;border-radius:20px}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.card{grid-column:span 6;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}.wide{grid-column:span 12}.metric{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.metric div{background:#0a151e;padding:12px;border-radius:10px}.metric small{display:block;color:var(--muted);margin-bottom:5px}form{display:flex;gap:8px;flex-wrap:wrap}form label{display:flex;flex-direction:column;gap:6px;color:var(--ink);font-size:13px;font-weight:700}form label small{color:var(--muted);font-weight:400}input,select,button{border:1px solid var(--line);background:#0a151e;color:var(--ink);padding:10px;border-radius:8px}button{background:var(--accent);color:#062218;border:0;font-weight:700;cursor:pointer;align-self:flex-end}.form-error:not(:empty){margin-top:10px;padding:10px;background:#441b24;border:1px solid var(--bad);border-radius:8px;color:#fff;font-weight:700}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line)}th{color:var(--muted)}.scroll{overflow:auto;max-height:340px}.error{color:#fff}#status:not(:empty){position:fixed;right:20px;bottom:20px;z-index:20;max-width:420px;margin:0;padding:14px 18px;background:#163228;border:1px solid var(--accent);border-radius:10px;box-shadow:0 10px 35px #0008}#status.is-error{background:#441b24;border-color:var(--bad)}@media(max-width:800px){.card{grid-column:span 12}.metric{grid-template-columns:repeat(2,1fr)}}
-</style></head><body><main><header><div><h1>Crypto Assistance</h1><div style="color:var(--muted)">Decision support · no live execution</div></div><span class="badge">Phase 1</span></header>
-<div class="grid"><section class="card" id="paper"></section><section class="card" id="real"></section><section class="card wide" id="best"></section><section class="card wide" id="positions"></section>
-<section class="card"><h2>Cash ledger</h2><form id="cash"><select name="mode"><option>PAPER</option><option>REAL</option></select><select name="type"><option>DEPOSIT</option><option>WITHDRAWAL</option></select><input name="amount" type="number" min="0.01" step="0.01" placeholder="THB" required><input name="note" placeholder="Note"><button>Add</button></form></section>
-<section class="card"><h2>Manual trade record</h2><p style="color:var(--muted)">บันทึกเฉพาะรายการที่เกิดขึ้นจริง สัญญาณไม่เปลี่ยน portfolio อัตโนมัติ</p><form id="trade"><label>บัญชี<select name="mode"><option>PAPER</option><option>REAL</option></select></label><label>รายการ<select name="side"><option>BUY</option><option>SELL</option></select></label><label>คู่เหรียญ<select name="pair"><option>BTC/THB</option><option>ETH/THB</option><option>SOL/THB</option><option>XRP/THB</option><option>DOGE/THB</option></select></label><label>จำนวนเหรียญ<input name="quantity" type="number" min="0" step="any" placeholder="เช่น 1000" required></label><label>ราคาที่ executed จริง (THB)<input name="price" type="number" min="0" step="any" placeholder="เช่น 2.9751" required></label><label>ค่าธรรมเนียมจริง (THB)<small>ไม่ทราบให้ใส่ 0</small><input name="fee" type="number" min="0" step=".01" value="0"></label><label>เวลาที่ executed<input name="execution_timestamp" type="datetime-local"></label><label>เหตุผล<select name="reason"><option>MANUAL_EXECUTION</option><option>TAKE_PROFIT_1</option><option>TAKE_PROFIT_2</option><option>STOP_LOSS</option><option>TRAILING_STOP</option><option>STRATEGY_EXIT</option><option>MANUAL_EXIT</option></select></label><button>Record actual execution</button></form><div id="trade-summary" style="margin-top:12px;color:var(--muted)">กรอกจำนวนและราคาเพื่อคำนวณยอดรวม</div><div id="trade-error" class="form-error"></div></section>
-<section class="card wide"><h2>Ranked market scanner <button id="scan">Scan now</button></h2><div class="scroll"><table><thead><tr><th>Rank</th><th>Pair</th><th>Price</th><th>Score</th><th>Status</th><th>Strategy</th><th>Entry zone</th><th>Stop</th><th>TP1 / TP2</th><th>Reason</th></tr></thead><tbody id="candidates"></tbody></table></div></section>
-<section class="card"><h2>Notifications</h2><div id="notes" class="scroll"></div></section><section class="card"><h2>Scanner settings</h2><form id="settings"><input name="price_refresh_seconds" type="number" min="30" max="3600" value="60"><input name="risk_percent" type="number" min=".1" max="5" step=".1" value="1"><label><input name="scanner_enabled" type="checkbox" checked> REST scanner</label><label><input name="websocket_enabled" type="checkbox" checked> WebSocket</label><label><input name="timeframes" type="checkbox" value="15m" checked>15m</label><label><input name="timeframes" type="checkbox" value="1h" checked>1h</label><label><input name="timeframes" type="checkbox" value="4h" checked>4h</label><button>Save settings</button></form></section><section class="card wide"><h2>Journal</h2><form id="journal"><select name="mode"><option>PAPER</option><option>REAL</option></select><input name="title" placeholder="Title" required><input name="body" placeholder="Notes" required><button>Save</button></form><div id="journal-list" class="scroll"></div></section></div><p id="status"></p></main>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypto Assistance — ผู้ช่วยเทรดคริปโต Bitkub THB</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070e17;
+      --card: #0f1924;
+      --card-hover: #142230;
+      --line: #1e3144;
+      --ink: #e8f1f7;
+      --muted: #8ca2b5;
+      --accent: #2ecc71;
+      --accent-glow: rgba(46, 204, 113, 0.2);
+      --warning: #f39c12;
+      --bad: #e74c3c;
+      --bad-glow: rgba(231, 76, 60, 0.2);
+      --blue: #3498db;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(145deg, #050b12, #0b1520);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Sarabun", "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    main { max-width: 1240px; margin: auto; padding: 24px 16px; }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line);
+    }
+    h1 { font-size: 24px; margin: 0; display: flex; align-items: center; gap: 10px; }
+    h2 { font-size: 16px; margin: 0 0 14px 0; color: #b8d0e2; display: flex; justify-content: space-between; align-items: center; }
+    .badge { padding: 4px 12px; background: #133324; color: #4eed9f; border-radius: 16px; font-size: 12px; font-weight: 600; }
+    .badge-real { background: #2c1a0e; color: #f39c12; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; position: relative; }
+    .card:hover { border-color: #2b455e; }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+    .metric { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+    .metric div { background: #071019; padding: 10px; border-radius: 8px; border: 1px solid #132230; }
+    .metric small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+    .metric span { font-size: 15px; font-weight: 700; }
+    .pos-green { color: var(--accent); }
+    .pos-red { color: var(--bad); }
+    
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 600; }
+    tr:hover { background: rgba(255,255,255,0.02); }
+    .scroll { overflow-x: auto; max-height: 380px; }
+    
+    form { display: flex; flex-wrap: wrap; gap: 10px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 600; flex: 1 1 140px; }
+    input, select, textarea {
+      border: 1px solid var(--line); background: #071019; color: var(--ink);
+      padding: 8px 10px; border-radius: 6px; font-size: 13px; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--blue); }
+    button {
+      background: var(--accent); color: #041a0e; border: 0; padding: 8px 16px;
+      border-radius: 6px; font-weight: 700; cursor: pointer; transition: 0.15s ease;
+    }
+    button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    button.btn-secondary { background: #1b2d3d; color: var(--ink); }
+    button.btn-ai { background: linear-gradient(135deg, #8e44ad, #3498db); color: #fff; }
+    button.btn-danger { background: var(--bad); color: #fff; }
+    button.btn-sm { padding: 4px 8px; font-size: 11px; }
+
+    .action-badge {
+      display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 13px;
+    }
+    .action-HOLD { background: #13271f; color: #2ecc71; border: 1px solid #2ecc71; }
+    .action-BUY_NOW { background: #10341e; color: #4eed9f; border: 1px solid #4eed9f; animation: pulse 2s infinite; }
+    .action-SELL_NOW, .action-STOP_LOSS { background: #3c1418; color: #ff6b7b; border: 1px solid #ff6b7b; }
+    .action-TAKE_PROFIT { background: #122b3b; color: #5dade2; border: 1px solid #5dade2; }
+    .action-EXIT_WATCH, .action-WATCH { background: #352611; color: #f39c12; border: 1px solid #f39c12; }
+    .action-WAIT { background: #15222d; color: #8ca2b5; }
+
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--accent-glow); } 70% { box-shadow: 0 0 0 8px rgba(0,0,0,0); } }
+
+    .note-item {
+      padding: 10px; border-radius: 8px; background: #07111a; border-left: 4px solid var(--blue);
+      margin-bottom: 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .note-item.note-CRITICAL { border-left-color: var(--bad); background: #180d10; }
+    .note-item.note-WARNING { border-left-color: var(--warning); background: #18140c; }
+    .note-item.is-read { opacity: 0.6; }
+
+    /* Modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      width: 90%; max-width: 600px; padding: 24px; max-height: 85vh; overflow-y: auto;
+    }
+    .modal-box h3 { margin-top: 0; display: flex; justify-content: space-between; align-items: center; }
+
+    #status {
+      position: fixed; right: 20px; bottom: 20px; z-index: 90;
+      padding: 12px 18px; border-radius: 8px; font-weight: 600; display: none;
+    }
+    #status.show { display: block; }
+    #status.success { background: #163826; border: 1px solid var(--accent); color: #fff; }
+    #status.error { background: #44181d; border: 1px solid var(--bad); color: #fff; }
+
+    @media (max-width: 900px) {
+      .span-4, .span-6, .span-8 { grid-column: span 12; }
+      .metric { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>🚀 Crypto Assistance <span style="font-size:14px;color:var(--muted);font-weight:400">· ผู้ช่วยเทรด Bitkub THB Spot (Deterministic + AI Second Opinion)</span></h1>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">
+        ระบบเพื่อการตัดสินใจและบริหารความเสี่ยง · ไม่มีการส่งคำสั่งเทรดอัตโนมัติ (Manual Real Execution)
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span id="ws-badge" class="badge">WebSocket เชื่อมต่อแล้ว</span>
+      <span class="badge badge-real">ระยะที่ 1.5</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- Real Portfolio -->
+    <section class="card span-6" id="real-card">
+      <h2>พอร์ตจริง (MANUAL_REAL) <span class="badge badge-real">บันทึกด้วยตนเอง</span></h2>
+      <div class="metric" id="real-metrics">
+        <div><small>เงินสดคงเหลือ</small><span id="real-cash">0.00 THB</span></div>
+        <div><small>มูลค่าสุทธิ (Equity)</small><span id="real-equity">0.00 THB</span></div>
+        <div><small>กำไรที่รับรู้แล้ว</small><span id="real-realized">0.00 THB</span></div>
+        <div><small>กำไรที่ยังไม่รับรู้</small><span id="real-unrealized">0.00 THB</span></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted)" id="real-sub">
+        เงินฝากรวม: 0.00 · ถอนรวม: 0.00 · ค่าธรรมเนียมสะสม: 0.00 · กำไรจากการเทรด: 0.00 THB
+      </div>
+    </section>
+
+    <!-- Paper Portfolio -->
+    <section class="card span-6" id="paper-card">
+      <h2>พอร์ตจำลอง (PAPER) <span class="badge">บัญชีทดลอง</span></h2>
+      <div class="metric" id="paper-metrics">
+        <div><small>เงินสดคงเหลือ</small><span id="paper-cash">0.00 THB</span></div>
+        <div><small>มูลค่าสุทธิ (Equity)</small><span id="paper-equity">0.00 THB</span></div>
+        <div><small>กำไรที่รับรู้แล้ว</small><span id="paper-realized">0.00 THB</span></div>
+        <div><small>กำไรที่ยังไม่รับรู้</small><span id="paper-unrealized">0.00 THB</span></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted)" id="paper-sub">
+        เงินฝากรวม: 0.00 · ถอนรวม: 0.00 · กำไรจากการเทรด: 0.00 THB
+      </div>
+    </section>
+
+    <!-- Open Position Monitoring (Section 20 requirement) -->
+    <section class="card span-12" id="position-monitor-card" style="border-left: 4px solid var(--accent)">
+      <h2>
+        <span>📌 การติดตามสถานะที่ถือครองอยู่ (Open Position Monitoring)</span>
+        <button id="btn-ask-ai" class="btn-ai btn-sm" onclick="askDeepSeekForPosition()">🤖 ถาม DeepSeek (ความเห็นที่ 2)</button>
+      </h2>
+      <div id="position-details">กำลังตรวจสอบข้อมูลสถานะ...</div>
+    </section>
+
+    <!-- Best Candidate Banner -->
+    <section class="card span-12" style="background:#09141f;border:1px solid #1a3348">
+      <h2>🏆 ตัวเลือกที่ดีที่สุด (BEST CANDIDATE)</h2>
+      <div id="best-candidate-banner" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <span style="font-size:18px;font-weight:700;color:var(--accent)">กำลังสแกนตลาด...</span>
+      </div>
+    </section>
+
+    <!-- Market Scanner Table -->
+    <section class="card span-12">
+      <h2>
+        <span>🔍 สแกนเนอร์จัดอันดับ 5 คู่เหรียญ (Market Scanner)</span>
+        <button id="scan-now-btn" class="btn-secondary btn-sm" onclick="runManualScan()">🔄 สแกนทันที</button>
+      </h2>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>อันดับ</th>
+              <th>คู่เหรียญ</th>
+              <th>ราคาปัจจุบัน</th>
+              <th>คะแนน</th>
+              <th>สถานะ</th>
+              <th>สภาวะตลาด</th>
+              <th>กลยุทธ์</th>
+              <th>โซนเข้าซื้อ</th>
+              <th>Stop Loss</th>
+              <th>เป้าหมาย TP1 / TP2</th>
+              <th>Risk/Reward</th>
+              <th>เหตุผล</th>
+            </tr>
+          </thead>
+          <tbody id="candidates-body">
+            <tr><td colspan="12" style="text-align:center;color:var(--muted)">กำลังโหลดข้อมูลสแกนเนอร์...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Manual Trade Record -->
+    <section class="card span-8">
+      <h2>📝 บันทึกการเทรดจริง (Manual Trade Execution)</h2>
+      <p style="font-size:12px;color:var(--muted);margin-top:-6px;margin-bottom:12px">
+        เมื่อเกิดสัญญาณ BUY_NOW หรือ SELL_NOW ให้ดำเนินการบน Bitkub ด้วยตนเอง จากนั้นบันทึกผลจริงที่ได้รับลงที่นี่
+      </p>
+      <form id="trade-form">
+        <label>โหมดบัญชี
+          <select name="mode">
+            <option value="MANUAL_REAL">พอร์ตจริง (MANUAL_REAL)</option>
+            <option value="PAPER">พอร์ตจำลอง (PAPER)</option>
+          </select>
+        </label>
+        <label>รายการ
+          <select name="side">
+            <option value="BUY">ซื้อ (BUY)</option>
+            <option value="SELL">ขาย (SELL)</option>
+          </select>
+        </label>
+        <label>คู่เหรียญ
+          <select name="pair">
+            <option value="DOGE/THB">DOGE/THB</option>
+            <option value="BTC/THB">BTC/THB</option>
+            <option value="ETH/THB">ETH/THB</option>
+            <option value="SOL/THB">SOL/THB</option>
+            <option value="XRP/THB">XRP/THB</option>
+          </select>
+        </label>
+        <label>จำนวนเหรียญ (Quantity)
+          <input name="quantity" type="number" step="any" min="0.000001" placeholder="เช่น 1676.44" required>
+        </label>
+        <label>ราคาที่ได้จริง (THB)
+          <input name="price" type="number" step="any" min="0.0001" placeholder="เช่น 2.98" required>
+        </label>
+        <label>ค่าธรรมเนียมจริง (THB)
+          <input name="fee" type="number" step="any" min="0" value="0.00">
+        </label>
+        <label>วันเวลาที่ทำรายการจริง
+          <input name="execution_timestamp" type="datetime-local">
+        </label>
+        <label>เหตุผล / กลยุทธ์
+          <select name="reason">
+            <option value="MANUAL_EXECUTION">ทำรายการด้วยตนเอง (Manual)</option>
+            <option value="BUY_NOW_SIGNAL">เข้าซื้อตามสัญญาณ BUY_NOW</option>
+            <option value="TAKE_PROFIT_1">ทำกำไรเป้าแรก (TP1)</option>
+            <option value="TAKE_PROFIT_2">ทำกำไรเป้าหลัก (TP2)</option>
+            <option value="STOP_LOSS">ตัดขาดทุนตามจุด Stop Loss</option>
+            <option value="TRAILING_STOP">ขายตามจุด Trailing Stop</option>
+            <option value="STRATEGY_EXIT">ขายออกตามสัญญาณกลยุทธ์เปลี่ยน</option>
+          </select>
+        </label>
+        <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+          <span id="trade-calc-hint" style="font-size:12px;color:var(--muted)">กรอกจำนวนและราคาเพื่อคำนวณมูลค่า</span>
+          <button type="submit">บันทึกรายการเทรด</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Cash Flow Management -->
+    <section class="card span-4">
+      <h2>💵 การจัดการเงินสด (Cash Ledger)</h2>
+      <form id="cash-form">
+        <label>โหมดบัญชี
+          <select name="mode">
+            <option value="MANUAL_REAL">พอร์ตจริง (MANUAL_REAL)</option>
+            <option value="PAPER">พอร์ตจำลอง (PAPER)</option>
+          </select>
+        </label>
+        <label>ประเภท
+          <select name="type">
+            <option value="DEPOSIT">ฝากเงิน (DEPOSIT)</option>
+            <option value="WITHDRAWAL">ถอนเงิน (WITHDRAWAL)</option>
+            <option value="ADJUSTMENT">ปรับยอด (ADJUSTMENT)</option>
+            <option value="FEE">ค่าธรรมเนียม (FEE)</option>
+          </select>
+        </label>
+        <label style="flex:1 1 100%">จำนวนเงิน (บาท)
+          <input name="amount" type="number" step="0.01" min="0.01" placeholder="จำนวนเงิน THB" required>
+        </label>
+        <label style="flex:1 1 100%">บันทึกหมายเหตุ
+          <input name="note" type="text" placeholder="เช่น ฝากเงินทดลอง">
+        </label>
+        <div style="width:100%;text-align:right;margin-top:8px">
+          <button type="submit">บันทึกกระแสเงินสด</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Notifications Center -->
+    <section class="card span-6">
+      <h2>
+        <span>🔔 ศูนย์แจ้งเตือน (Notifications) <span id="unread-badge" class="badge" style="background:#8e44ad">0 ใหม่</span></span>
+        <button class="btn-secondary btn-sm" onclick="markAllNotificationsRead()">อ่านแล้วทั้งหมด</button>
+      </h2>
+      <div style="margin-bottom:10px;display:flex;gap:6px">
+        <button class="btn-secondary btn-sm" onclick="toggleUnreadFilter(false)" id="filter-all-btn">ทั้งหมด</button>
+        <button class="btn-secondary btn-sm" onclick="toggleUnreadFilter(true)" id="filter-unread-btn">เฉพาะยังไม่อ่าน</button>
+      </div>
+      <div class="scroll" id="notifications-list" style="max-height:300px">
+        <div style="text-align:center;color:var(--muted);padding:20px">ไม่มีการแจ้งเตือน</div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="card span-6">
+      <h2>⚙️ การตั้งค่าระบบ (Settings)</h2>
+      <form id="settings-form">
+        <label>รอบการสแกนราคา (วินาที)
+          <input name="price_refresh_seconds" type="number" min="30" max="3600" value="60">
+        </label>
+        <label>ความเสี่ยงสูงสุดต่อไม้ (%)
+          <input name="risk_percent" type="number" step="0.1" min="0.1" max="5.0" value="2.0">
+        </label>
+        <label>ประมาณการค่าธรรมเนียมออก (%)
+          <input name="estimated_exit_fee_percent" type="number" step="0.01" min="0" max="1" value="0.25">
+        </label>
+        <label style="flex:1 1 100%">
+          <div style="display:flex;gap:14px;margin-top:6px;flex-wrap:wrap">
+            <span><input name="scanner_enabled" type="checkbox" checked> เปิด REST Scanner</span>
+            <span><input name="websocket_enabled" type="checkbox" checked> เปิด WebSocket Ticker</span>
+            <span><input name="telegram_enabled" type="checkbox" checked> เปิดแจ้งเตือน Telegram</span>
+          </div>
+        </label>
+        <label style="flex:1 1 100%">Timeframes กลยุทธ์
+          <div style="display:flex;gap:14px;margin-top:4px">
+            <span><input name="timeframes" type="checkbox" value="15m" checked> 15 นาที</span>
+            <span><input name="timeframes" type="checkbox" value="1h" checked> 1 ชั่วโมง</span>
+            <span><input name="timeframes" type="checkbox" value="4h" checked> 4 ชั่วโมง</span>
+          </div>
+        </label>
+        <div style="width:100%;text-align:right;margin-top:8px">
+          <button type="submit">บันทึกการตั้งค่า</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Journal & Performance History -->
+    <section class="card span-12">
+      <h2>📖 บันทึกการเทรดและประวัติผลการดำเนินงาน (Journal & History)</h2>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>วันเวลา (Asia/Bangkok)</th>
+              <th>พอร์ต</th>
+              <th>ประเภท</th>
+              <th>คู่เหรียญ</th>
+              <th>จำนวน</th>
+              <th>ราคา</th>
+              <th>ยอดเงิน THB</th>
+              <th>ค่าธรรมเนียม</th>
+              <th>บันทึกเหตุผล</th>
+            </tr>
+          </thead>
+          <tbody id="journal-body">
+            <tr><td colspan="9" style="text-align:center;color:var(--muted)">กำลังโหลดประวัติ...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- DeepSeek Modal -->
+  <div class="modal-overlay" id="ai-modal">
+    <div class="modal-box">
+      <h3>
+        <span>🤖 ความเห็นที่ 2 จาก DeepSeek AI (Second Opinion)</span>
+        <button class="btn-secondary btn-sm" onclick="closeAiModal()">✕ ปิด</button>
+      </h3>
+      <div id="ai-modal-content" style="font-size:13px;line-height:1.6">
+        กำลังเชื่อมต่อ DeepSeek...
+      </div>
+    </div>
+  </div>
+
+  <div id="status"></div>
+</main>
+
 <script>
-const $=s=>document.querySelector(s), fmt=n=>Number(n).toLocaleString('th-TH',{maximumFractionDigits:4});let cashByMode={PAPER:0,REAL:0};
-async function api(url,opt={}){let r=await fetch(url,{headers:{'Content-Type':'application/json'},...opt});let j=await r.json();if(!r.ok)throw Error(j.detail||'Request failed');return j}
-function portfolio(id,p){$(id).innerHTML=`<h2>${p.mode} portfolio</h2><div class="metric"><div><small>Cash</small>${fmt(p.cash)}</div><div><small>Equity</small>${fmt(p.equity)}</div><div><small>Realized P/L</small>${fmt(p.realized_pnl)}</div><div><small>Unrealized P/L</small>${fmt(p.unrealized_pnl)}</div></div><p>Deposits ${fmt(p.deposits)} · Withdrawals ${fmt(p.withdrawals)} · Trading P/L ${fmt(p.trading_pnl)}</p>`}
-async function load(){let d=await api('/api/dashboard');cashByMode={PAPER:d.paper.cash,REAL:d.real.cash};portfolio('#paper',d.paper);portfolio('#real',d.real);$('#best').innerHTML=`<h2>BEST CANDIDATE</h2><div style="font-size:24px;color:var(--accent)">${d.best_candidate?`${d.best_candidate.pair} · ${d.best_candidate.score} · ${d.best_candidate.status}`:'NONE · WAIT'}</div>`;let ps=[d.paper,d.real].filter(p=>p.position_plan);$('#positions').innerHTML=`<h2>Open position monitoring</h2>`+(ps.length?ps.map(p=>{let x=p.positions[0],z=p.position_plan;return `<p><b>${p.mode} ${z.asset}/THB · ${z.current_action}</b><br>Entry ${fmt(z.entry_price)} · Current ${fmt(x.market_price)} · Qty ${fmt(x.quantity)} · P/L ${fmt(x.unrealized_pnl)} THB (${fmt(x.unrealized_pnl/(x.quantity*x.average_cost)*100)}%)<br>Stop ${fmt(z.stop_loss)} · Effective ${fmt(z.effective_stop)} · TP1 ${fmt(z.take_profit_1)} · TP2 ${fmt(z.take_profit_2)}<br>Strategy ${z.strategy} · Entry score ${z.entry_score}<br>${z.action_reason}<br><small>Market update: ${new Date(x.market_updated_at).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'})}</small></p>`}).join(''):'No open position');$('#candidates').innerHTML=d.candidates.map((c,i)=>`<tr><td>${i+1}</td><td>${c.pair}</td><td>${fmt(c.current_price)}</td><td>${c.score}</td><td>${c.status}</td><td>${c.strategy}</td><td>${fmt(c.entry_low)}–${fmt(c.entry_high)}</td><td>${fmt(c.stop_loss)}</td><td>${fmt(c.take_profit_1)} / ${fmt(c.take_profit_2)}</td><td>${c.reason}</td></tr>`).join('');$('#notes').innerHTML=d.notifications.map(n=>`<p><b>${n.title}</b><br><span style="color:var(--muted)">${n.message}</span><br><small>${new Date(n.created_at).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'})}</small></p>`).join('')||'No notifications';$('#journal-list').innerHTML=d.journal.map(j=>`<p><b>${j.title}</b><br>${j.body}</p>`).join('')||'No entries';updateTradeSummary()}
-function showStatus(message,error=false){let s=$('#status');s.textContent=message;s.classList.toggle('is-error',error);clearTimeout(showStatus.timer);showStatus.timer=setTimeout(()=>{s.textContent='';s.classList.remove('is-error')},6000)}
-function bind(id,url){$(id).onsubmit=async e=>{e.preventDefault();let o=Object.fromEntries(new FormData(e.target));for(let k of ['amount','quantity','price','fee'])if(k in o)o[k]=Number(o[k]);if(!o.execution_timestamp)delete o.execution_timestamp;try{await api(url,{method:'POST',body:JSON.stringify(o)});e.target.reset();if(id==='#trade')$('#trade-error').textContent='';await load();showStatus('บันทึกสำเร็จ')}catch(x){if(id==='#trade')$('#trade-error').textContent=x.message;showStatus(x.message,true)}}}
-function updateTradeSummary(){let f=$('#trade'),mode=f.mode.value,side=f.side.value,q=Number(f.quantity.value||0),price=Number(f.price.value||0),fee=Number(f.fee.value||0),cash=cashByMode[mode]||0,total=q*price+fee,max=price>0?Math.max(0,(cash-fee)/price):0;$('#trade-summary').innerHTML=`ยอดรวม <b>${fmt(total)} THB</b> · เงินสด ${fmt(cash)} THB${side==='BUY'&&price>0?` · ซื้อได้สูงสุด ${fmt(max)} เหรียญ`:''}`;$('#trade-error').textContent=side==='BUY'&&total>cash?`เงินไม่พอ: ขาด ${fmt(total-cash)} THB กรุณาลดจำนวนเหรียญหรือค่าธรรมเนียม`:''}
-$('#trade').addEventListener('input',updateTradeSummary);$('#trade').addEventListener('change',updateTradeSummary);
-bind('#cash','/api/cash');bind('#trade','/api/trades');bind('#journal','/api/journal');$('#settings').onsubmit=async e=>{e.preventDefault();let f=new FormData(e.target),o={price_refresh_seconds:Number(f.get('price_refresh_seconds')),risk_percent:Number(f.get('risk_percent')),scanner_enabled:f.has('scanner_enabled'),websocket_enabled:f.has('websocket_enabled'),realtime_alert_cooldown_seconds:300,timeframes:f.getAll('timeframes')};try{await api('/api/settings',{method:'PUT',body:JSON.stringify(o)});$('#status').textContent='Settings saved'}catch(x){$('#status').textContent=x.message}};$('#scan').onclick=async()=>{try{$('#status').textContent='Scanning…';let r=await api('/api/scan',{method:'POST'});$('#status').textContent=`Completed ${r.analyses||0} analyses`;await load()}catch(e){$('#status').textContent=e.message}};
-const stream=new EventSource('/api/notifications/stream');stream.addEventListener('notification',e=>{let n=JSON.parse(e.data);$('#notes').insertAdjacentHTML('afterbegin',`<p><b>${n.title}</b><br><span style="color:var(--muted)">${n.message}</span></p>`);$('#status').textContent=`New alert: ${n.title}`});stream.onerror=()=>{$('#status').textContent='Notification stream reconnecting…'};load();
-</script></body></html>
+const $ = s => document.querySelector(s);
+const fmt = (n, d = 2) => Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: d, maximumFractionDigits: d });
+let currentData = null;
+let unreadFilterOnly = false;
+
+function showToast(msg, isError = false) {
+  const s = $('#status');
+  s.textContent = msg;
+  s.className = `show ${isError ? 'error' : 'success'}`;
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => { s.className = ''; }, 5000);
+}
+
+async function api(url, options = {}) {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.detail || 'เกิดข้อผิดพลาดในการส่งคำขอ');
+  return json;
+}
+
+function renderPortfolios(d) {
+  const render = (p, prefix) => {
+    $(`#${prefix}-cash`).textContent = `${fmt(p.cash)} THB`;
+    $(`#${prefix}-equity`).textContent = `${fmt(p.equity)} THB`;
+    $(`#${prefix}-realized`).textContent = `${fmt(p.realized_pnl)} THB`;
+    $(`#${prefix}-realized`).className = p.realized_pnl >= 0 ? 'pos-green' : 'pos-red';
+    $(`#${prefix}-unrealized`).textContent = `${fmt(p.unrealized_pnl)} THB`;
+    $(`#${prefix}-unrealized`).className = p.unrealized_pnl >= 0 ? 'pos-green' : 'pos-red';
+    $(`#${prefix}-sub`).innerHTML = `เงินฝากรวม: ${fmt(p.deposits)} · ถอนรวม: ${fmt(p.withdrawals)} · ค่าธรรมเนียมรวม: ${fmt(p.fees || 0)} · <b>กำไรสุทธิรวม (Trading P/L): ${fmt(p.trading_pnl)} THB</b>`;
+  };
+  render(d.real, 'real');
+  render(d.paper, 'paper');
+}
+
+function renderPositionMonitor(d) {
+  const realPort = d.real;
+  const pos = realPort.positions && realPort.positions[0];
+  const plan = realPort.position_plan;
+
+  if (!pos && !plan) {
+    $('#position-details').innerHTML = `
+      <div style="color:var(--muted);padding:10px 0">
+        ไม่มีสถานะที่ถือครองในพอร์ตจริงขณะนี้ (สถานะว่าง พร้อมรับคำแนะนำ BUY_NOW)
+      </div>`;
+    $('#btn-ask-ai').style.display = 'none';
+    return;
+  }
+
+  $('#btn-ask-ai').style.display = 'inline-block';
+  const asset = pos ? pos.asset : plan.asset;
+  const currentPrice = pos ? pos.market_price : plan.entry_price;
+  const entryPrice = plan ? plan.entry_price : (pos ? pos.average_cost : 0);
+  const qty = pos ? pos.quantity : 0;
+  const costVal = qty * entryPrice;
+  const mVal = pos ? pos.market_value : 0;
+  const unPnl = pos ? pos.unrealized_pnl : 0;
+  const unPnlPct = pos ? pos.unrealized_pnl_percent : 0;
+  const action = plan ? plan.current_action : 'HOLD';
+  const reason = plan ? plan.action_reason : 'ถือต่อ';
+
+  $('#position-details').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <span style="font-size:20px;font-weight:700">${asset}/THB</span>
+        <span class="action-badge action-${action}" style="margin-left:10px">${action} (${getThaiAction(action)})</span>
+      </div>
+      <div style="font-size:13px;color:var(--muted)">
+        ต้นทุนจริง: <b style="color:var(--ink)">${fmt(entryPrice, 4)} THB</b> · ราคาตลาดปัจจุบัน: <b style="color:var(--ink)">${fmt(currentPrice, 4)} THB</b>
+      </div>
+    </div>
+    <div class="metric">
+      <div><small>จำนวนที่ถือครอง</small><span>${fmt(qty, 4)} ${asset}</span></div>
+      <div><small>ต้นทุนรวมที่ซื้อจริง</small><span>${fmt(costVal, 2)} THB</span></div>
+      <div><small>มูลค่าตลาดปัจจุบัน</small><span>${fmt(mVal, 2)} THB</span></div>
+      <div>
+        <small>กำไร/ขาดทุนปัจจุบัน</small>
+        <span class="${unPnl >= 0 ? 'pos-green' : 'pos-red'}">${fmt(unPnl, 2)} THB (${unPnlPct >= 0 ? '+' : ''}${fmt(unPnlPct, 2)}%)</span>
+      </div>
+    </div>
+    <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;font-size:13px;display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px">
+      <div><b>จุดตัดขาดทุน (Stop Loss):</b> ${plan ? fmt(plan.stop_loss, 4) : 'N/A'} THB</div>
+      <div><b>จุดตัดขาดทุนเลื่อน (Trailing Stop):</b> ${plan ? fmt(plan.effective_stop, 4) : 'N/A'} THB</div>
+      <div><b>เป้าหมายทำกำไร 1 (TP1):</b> ${plan ? fmt(plan.take_profit_1, 4) : 'N/A'} THB</div>
+      <div><b>เป้าหมายทำกำไร 2 (TP2):</b> ${plan ? fmt(plan.take_profit_2, 4) : 'N/A'} THB</div>
+      <div><b>กลยุทธ์ที่ใช้เข้า:</b> ${plan ? plan.strategy : 'N/A'}</div>
+      <div><b>คำแนะนำปัจจุบัน:</b> <span style="color:var(--accent)">${reason}</span></div>
+    </div>
+  `;
+}
+
+function getThaiAction(a) {
+  const map = {
+    'HOLD': 'ถือต่อ',
+    'EXIT_WATCH': 'เตรียมออก',
+    'TAKE_PROFIT': 'ทำกำไร',
+    'STOP_LOSS': 'ตัดขาดทุน',
+    'SELL_NOW': 'ขายตอนนี้',
+    'BUY_NOW': 'ซื้อได้ตอนนี้',
+    'WAIT': 'รอดู',
+    'WATCH': 'จับตา'
+  };
+  return map[a] || a;
+}
+
+function renderBestCandidate(d) {
+  const b = d.best_candidate;
+  if (!b) {
+    const hasPos = d.real.has_open_position;
+    $('#best-candidate-banner').innerHTML = `
+      <div style="color:var(--muted)">
+        ${hasPos ? '⚠️ กำลังถือครองสถานะอยู่ (จำกัด 1 สถานะพร้อมกัน) — ระบบระงับคำแนะนำซื้อใหม่' : 'ยังไม่มีสัญญาณซื้อที่เข้าเกณฑ์ (สถานะ: รอดู WAIT)'}
+      </div>`;
+    return;
+  }
+
+  $('#best-candidate-banner').innerHTML = `
+    <div>
+      <span style="font-size:20px;font-weight:800;color:var(--accent)">${b.pair}</span>
+      <span class="action-badge action-BUY_NOW" style="margin-left:8px">BUY_NOW (${b.status_th})</span>
+      <span style="margin-left:8px;font-size:13px;color:var(--muted)">คะแนน: <b>${b.score}/100</b> · กลยุทธ์: <b>${b.strategy_th}</b> · สภาวะ: <b>${b.regime_th}</b></span>
+    </div>
+    <div style="font-size:13px">
+      ราคาปัจจุบัน: <b>${fmt(b.current_price, 4)} THB</b> · โซนเข้าซื้อ: <b>${fmt(b.entry_low, 4)} - ${fmt(b.entry_high, 4)} THB</b> · Stop: <b>${fmt(b.stop_loss, 4)}</b> · TP1: <b>${fmt(b.take_profit_1, 4)}</b> (R:R ${b.risk_reward})
+    </div>
+  `;
+}
+
+function renderCandidates(d) {
+  const tbody = $('#candidates-body');
+  if (!d.candidates || d.candidates.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--muted)">ไม่พบข้อมูลสแกนเนอร์</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = d.candidates.map((c, idx) => `
+    <tr>
+      <td>${idx + 1}</td>
+      <td><b>${c.pair}</b></td>
+      <td>${fmt(c.current_price, 4)}</td>
+      <td><b style="color:${c.score >= 70 ? 'var(--accent)' : (c.score >= 50 ? 'var(--warning)' : 'var(--muted)')}">${c.score}</b></td>
+      <td><span class="action-badge action-${c.status}">${c.status_th || c.status}</span></td>
+      <td>${c.regime_th || c.regime}</td>
+      <td>${c.strategy_th || c.strategy}</td>
+      <td>${fmt(c.entry_low, 2)} - ${fmt(c.entry_high, 2)}</td>
+      <td style="color:var(--bad)">${fmt(c.stop_loss, 2)}</td>
+      <td style="color:var(--accent)">${fmt(c.take_profit_1, 2)} / ${fmt(c.take_profit_2, 2)}</td>
+      <td>${c.risk_reward}</td>
+      <td style="font-size:12px;color:var(--muted);max-width:240px">${c.reason_th || c.reason}</td>
+    </tr>
+  `).join('');
+}
+
+function renderNotifications(d) {
+  let notes = d.notifications || [];
+  if (unreadFilterOnly) {
+    notes = notes.filter(n => !n.is_read);
+  }
+  $('#unread-badge').textContent = `${d.unread_notifications_count || 0} ใหม่`;
+
+  const container = $('#notifications-list');
+  if (notes.length === 0) {
+    container.innerHTML = `<div style="text-align:center;color:var(--muted);padding:20px">ไม่มีการแจ้งเตือน</div>`;
+    return;
+  }
+
+  container.innerHTML = notes.map(n => `
+    <div class="note-item note-${n.level} ${n.is_read ? 'is-read' : ''}">
+      <div>
+        <div style="font-weight:700;margin-bottom:2px">${n.title}</div>
+        <div style="white-space:pre-line;color:#c3d4e2">${n.message}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">${new Date(n.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}</div>
+      </div>
+      ${!n.is_read ? `<button class="btn-secondary btn-sm" onclick="markNotificationRead(${n.id})">อ่านแล้ว</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderJournal(d) {
+  const tbody = $('#journal-body');
+  const items = d.ledger || [];
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted)">ยังไม่มีประวัติการทำรายการ</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items.map(l => `
+    <tr>
+      <td style="font-size:11px">${new Date(l.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}</td>
+      <td><span class="badge ${l.mode === 'MANUAL_REAL' ? 'badge-real' : ''}">${l.mode}</span></td>
+      <td><b>${l.type}</b></td>
+      <td>${l.pair || '-'}</td>
+      <td>${l.quantity > 0 ? fmt(l.quantity, 4) : '-'}</td>
+      <td>${l.price_thb > 0 ? fmt(l.price_thb, 4) : '-'}</td>
+      <td style="color:${l.amount_thb >= 0 ? 'var(--accent)' : 'var(--bad)'}">${fmt(l.amount_thb, 2)}</td>
+      <td>${l.fee_thb > 0 ? fmt(l.fee_thb, 2) : '-'}</td>
+      <td style="font-size:12px;color:var(--muted)">${l.note || '-'}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadDashboard() {
+  try {
+    const d = await api('/api/dashboard');
+    currentData = d;
+    renderPortfolios(d);
+    renderPositionMonitor(d);
+    renderBestCandidate(d);
+    renderCandidates(d);
+    renderNotifications(d);
+    renderJournal(d);
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+async function markNotificationRead(id) {
+  try {
+    await api(`/api/notifications/${id}/read`, { method: 'POST' });
+    loadDashboard();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+async function markAllNotificationsRead() {
+  try {
+    await api('/api/notifications/read-all', { method: 'POST' });
+    showToast('ทำเครื่องหมายว่าอ่านแล้วทั้งหมด');
+    loadDashboard();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+function toggleUnreadFilter(unread) {
+  unreadFilterOnly = unread;
+  $('#filter-all-btn').className = `btn-sm ${!unread ? 'btn-ai' : 'btn-secondary'}`;
+  $('#filter-unread-btn').className = `btn-sm ${unread ? 'btn-ai' : 'btn-secondary'}`;
+  if (currentData) renderNotifications(currentData);
+}
+
+async function runManualScan() {
+  const btn = $('#scan-now-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังสแกน...';
+  try {
+    const res = await api('/api/scan', { method: 'POST' });
+    showToast(`สแกนตลาดเสร็จสิ้น: วิเคราะห์ ${res.analyses || 0} รายการ`);
+    await loadDashboard();
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 สแกนทันที';
+  }
+}
+
+async function askDeepSeekForPosition() {
+  const modal = $('#ai-modal');
+  const content = $('#ai-modal-content');
+  modal.classList.add('open');
+  content.innerHTML = '<div style="text-align:center;padding:30px">⏳ กำลังรวบรวมบริบททางเทคนิคและส่งให้ DeepSeek AI วิเคราะห์ความเห็นที่ 2...</div>';
+
+  try {
+    const res = await api('/api/ai/ask-position', {
+      method: 'POST',
+      body: JSON.stringify({ symbol: 'DOGE/THB', mode: 'MANUAL_REAL' })
+    });
+    const a = res.analysis || {};
+    content.innerHTML = `
+      <div style="background:#071019;padding:12px;border-radius:8px;border:1px solid #142230;margin-bottom:14px">
+        <h4 style="margin:0 0 6px 0;color:var(--accent)">1. การประเมินภาพรวม (Assessment)</h4>
+        <p style="margin:0">${a.assessment || 'N/A'}</p>
+      </div>
+      <div style="margin-bottom:10px"><b>ระดับความมั่นใจ:</b> <span class="badge" style="background:#2c1a3a;color:#c39bd3">${a.confidence || 'N/A'}</span></div>
+      <div style="margin-bottom:10px"><b style="color:var(--accent)">มุมมองเชิงบวก (Bull Case):</b> ${a.bull_case || 'N/A'}</div>
+      <div style="margin-bottom:10px"><b style="color:var(--bad)">มุมมองเชิงลบ (Bear Case):</b> ${a.bear_case || 'N/A'}</div>
+      <div style="margin-bottom:10px"><b style="color:var(--warning)">ความเสี่ยงสำคัญ (Key Risks):</b> ${a.key_risks || 'N/A'}</div>
+      <div style="background:#11221b;padding:12px;border-radius:8px;border:1px solid var(--accent);margin-top:14px">
+        <h4 style="margin:0 0 6px 0;color:#58d68d">สรุปคำแนะนำเพื่อการตัดสินใจ</h4>
+        <p style="margin:0">${a.summary || 'N/A'}</p>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:14px">
+        ⚠️ คำเตือน: ข้อความข้างต้นเป็นความเห็นที่ 2 ประกอบการตัดสินใจเท่านั้น ผู้ใช้เป็นผู้ตัดสินใจและดำเนินการเทรดจริงบนกระดานด้วยตนเอง
+      </p>
+    `;
+  } catch (err) {
+    content.innerHTML = `<div style="color:var(--bad);padding:20px">เกิดข้อผิดพลาดในการเรียก DeepSeek: ${err.message}</div>`;
+  }
+}
+
+function closeAiModal() {
+  $('#ai-modal').classList.remove('open');
+}
+
+// Bind Forms
+$('#trade-form').onsubmit = async e => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const payload = Object.fromEntries(formData);
+  for (const k of ['quantity', 'price', 'fee']) {
+    if (k in payload) payload[k] = Number(payload[k] || 0);
+  }
+  if (!payload.execution_timestamp) delete payload.execution_timestamp;
+
+  try {
+    await api('/api/trades', { method: 'POST', body: JSON.stringify(payload) });
+    showToast('บันทึกการเทรดสำเร็จ');
+    e.target.reset();
+    loadDashboard();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+};
+
+$('#cash-form').onsubmit = async e => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const payload = Object.fromEntries(formData);
+  payload.amount = Number(payload.amount || 0);
+
+  try {
+    await api('/api/cash', { method: 'POST', body: JSON.stringify(payload) });
+    showToast('บันทึกกระแสเงินสดสำเร็จ');
+    e.target.reset();
+    loadDashboard();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+};
+
+$('#settings-form').onsubmit = async e => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const payload = {
+    price_refresh_seconds: Number(f.get('price_refresh_seconds')),
+    risk_percent: Number(f.get('risk_percent')),
+    estimated_exit_fee_percent: Number(f.get('estimated_exit_fee_percent')),
+    scanner_enabled: f.has('scanner_enabled'),
+    websocket_enabled: f.has('websocket_enabled'),
+    realtime_alert_cooldown_seconds: 300,
+    timeframes: f.getAll('timeframes')
+  };
+
+  try {
+    await api('/api/settings', { method: 'PUT', body: JSON.stringify(payload) });
+    showToast('บันทึกการตั้งค่าสำเร็จ');
+    loadDashboard();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+};
+
+// Calculate hint on trade form
+$('#trade-form').addEventListener('input', () => {
+  const f = $('#trade-form');
+  const q = Number(f.quantity.value || 0);
+  const p = Number(f.price.value || 0);
+  const fee = Number(f.fee.value || 0);
+  const total = (q * p) + fee;
+  $('#trade-calc-hint').innerHTML = `ยอดรวมโดยประมาณ: <b style="color:var(--ink)">${fmt(total, 2)} THB</b> (ค่าเหรียญ ${fmt(q * p, 2)} + ค่าธรรมเนียม ${fmt(fee, 2)})`;
+});
+
+// SSE Notifications Stream
+const sse = new EventSource('/api/notifications/stream');
+sse.addEventListener('notification', e => {
+  const note = JSON.parse(e.data);
+  showToast(`🔔 การแจ้งเตือนใหม่: ${note.title}`);
+  loadDashboard();
+});
+sse.onerror = () => {
+  $('#ws-badge').textContent = 'กำลังเชื่อมต่อใหม่...';
+  $('#ws-badge').className = 'badge badge-real';
+};
+sse.onopen = () => {
+  $('#ws-badge').textContent = 'WebSocket & SSE เชื่อมต่อแล้ว';
+  $('#ws-badge').className = 'badge';
+};
+
+// Initial Load
+loadDashboard();
+setInterval(loadDashboard, 30000);
+</script>
+</body>
+</html>
