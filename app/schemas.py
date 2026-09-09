@@ -4,7 +4,13 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 
-Mode = Literal["PAPER", "REAL"]
+Mode = Literal["PAPER", "REAL", "MANUAL_REAL"]
+
+
+class AskDeepSeekRequest(BaseModel):
+    symbol: Literal["BTC/THB", "ETH/THB", "SOL/THB", "XRP/THB", "DOGE/THB"] = "DOGE/THB"
+    mode: Mode = "MANUAL_REAL"
+
 
 
 class CashRequest(BaseModel):
